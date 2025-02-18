@@ -1,0 +1,38 @@
+extends layout
+
+block content
+  h1.mb-4 Manual Seat Assignment
+  p.mb-3 Pre-assign students by filling in the seats. Leave blank to let the algorithm assign.
+  form(method="POST", action="/arrange")
+    // Pass parameters as hidden fields.
+    input(type="hidden", name="numTables", value=numTables)
+    input(type="hidden", name="seatsPerTable", value=seatsPerTable)
+    input(type="hidden", name="bonusParameter", value=bonusParameter)
+    input(type="hidden", name="bonusConfig", value=bonusConfig)
+    input(type="hidden", name="L", value=L)
+    each table, tIdx in seatingArrangement
+      h2.mt-4 Table #{tIdx + 1}
+      if bonusConfig === 'left' || bonusConfig === 'both'
+        .mb-2
+          label.form-label(for=`seat_${tIdx}_bonus_left`) Bonus Left:
+          input.form-control(type="text", name=`seat_${tIdx}_bonus_left`, id=`seat_${tIdx}_bonus_left`, value=table.bonus.left)
+      if bonusConfig === 'right' || bonusConfig === 'both'
+        .mb-2
+          label.form-label(for=`seat_${tIdx}_bonus_right`) Bonus Right:
+          input.form-control(type="text", name=`seat_${tIdx}_bonus_right`, id=`seat_${tIdx}_bonus_right`, value=table.bonus.right)
+      h3 Top Side
+      each seat, i in table.top
+        .mb-2
+          label.form-label(for=`seat_${tIdx}_top_${i}`) Top Seat #{i + 1}:
+          input.form-control(type="text", name=`seat_${tIdx}_top_${i}`, id=`seat_${tIdx}_top_${i}`, value=seat)
+      h3 Bottom Side
+      each seat, i in table.bottom
+        .mb-2
+          label.form-label(for=`seat_${tIdx}_bottom_${i}`) Bottom Seat #{i + 1}:
+          input.form-control(type="text", name=`seat_${tIdx}_bottom_${i}`, id=`seat_${tIdx}_bottom_${i}`, value=seat)
+    button.btn.btn-success.mt-3(type="submit") Optimize Seating
+  hr.mt-4
+  h3 Students List (from Excel file):
+  ul
+    each student in students
+      li= student.name
