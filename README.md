@@ -3,6 +3,8 @@
 ## Overview
 SeatFinder is a Node.js application that optimizes student seating arrangements using simulated annealing. It allows manual seat assignments along with automatic optimization and provides interactive visualizations.
 
+It uses a simulated annealing algorithm to find ideal seating configuration (goes through 1,5M iterations). Yet it still doesn't always arrive at perfect arrangement each time, so you'll might have to play around a bit. This problem is surprisingly hard.
+
 ## Features
 - **Excel Import:**  
   Upload student data via an Excel file (.xlsx) where:  
@@ -10,7 +12,7 @@ SeatFinder is a Node.js application that optimizes student seating arrangements 
   - **Column 2** contains zero to four comma-separated names representing seating wishes.  
   - **Column 3** (optional) is a float (1–10) representing the student's weight. *(Note: This feature is highly untested; it might work, or might need further adjustments.)*
 - **Automatic & Manual Seating Assignment:**  
-  Generate an initial seating arrangement automatically, then refine it manually if needed.
+  You can manually set seats before generating automatic seating arrangement. After generating the arrangement you can then refine it manually if needed.
 - **Custom Table Layout Options:**  
   - Automatic grid  
   - Single row or single column  
