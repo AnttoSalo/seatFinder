@@ -10,7 +10,7 @@ block content
       label.form-label(for="seatsPerTable") Seats per Table:
       input.form-control(type="number", name="seatsPerTable", id="seatsPerTable", required)
     .mb-3
-      label.form-label Bonus Seat Configuration:
+      label.form-label Seats On Ends of Tables?:
       div
         label.me-3
           input(type="radio", name="bonusConfig", value="none", checked)
@@ -25,8 +25,8 @@ block content
           input(type="radio", name="bonusConfig", value="both")
           | Both
     .mb-3
-      label.form-label(for="bonusParameter") Bonus Parameter (for at least one wish fulfilled):
-      input.form-control(type="number", step="0.1", name="bonusParameter", id="bonusParameter", required)
+      label.form-label(for="bonusParameter") Multiplier For Prioritizing At Least One Wish Fulfilled:
+      input.form-control(type="number", name="bonusParameter", id="bonusParameter", step="0.1", value="1.0", required)
     // New table layout configuration section:
     .mb-3
       label.form-label(for="layoutMode") Table Layout Mode:
@@ -41,8 +41,16 @@ block content
       label.form-label(for="layoutColumns") Number of Columns:
       input.form-control(type="number", name="layoutColumns", id="layoutColumns")
     .mb-3
+      label.form-label(for="earlyStop") Enable Early Stop (stop optimization once a perfect seating is found):
+      input.ml-3(type="checkbox", name="earlyStop", id="earlyStop", checked)
+    .mb-3
       label.form-label(for="excelFile") Upload Excel File (.xlsx):
       input.form-control(type="file", name="excelFile", id="excelFile", accept=".xlsx")
+    // --- New: Load from JSON option ---
+    .mb-3
+      label.form-label(for="jsonFile") Or Load Arrangement from JSON:
+      input.form-control(type="file", id="jsonFile", accept=".json")
+      button.btn.btn-secondary.mt-2(type="button", id="loadJsonBtn") Load from JSON
     button.btn.btn-primary(type="submit") Next
 
   script.
@@ -55,4 +63,26 @@ block content
       } else {
         customFields.style.display = 'none';
       }
+    });
+
+    // Load from JSON functionality.
+    document.getElementById('loadJsonBtn').addEventListener('click', function() {
+      const fileInput = document.getElementById('jsonFile');
+      if (!fileInput.files.length) {
+        alert("Please select a JSON file to load.");
+        return;
+      }
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const loadedData = JSON.parse(e.target.result);
+          // Save loadedData to localStorage and redirect to a route for displaying it.
+          localStorage.setItem("loadedArrangement", JSON.stringify(loadedData));
+          window.location.href = "/loadArrangement";
+        } catch(err) {
+          alert("Error parsing JSON file. Please ensure it is valid.");
+        }
+      };
+      reader.readAsText(file);
     });

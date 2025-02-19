@@ -70,8 +70,8 @@ function evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfi
         if (table.bottom[i] && student.wishes.includes(table.bottom[i])) fulfilled += 1;
         if (i > 0 && table.bottom[i-1] && student.wishes.includes(table.bottom[i-1])) fulfilled += 0.8;
         if (i < table.top.length - 1 && table.bottom[i+1] && student.wishes.includes(table.bottom[i+1])) fulfilled += 0.8;
-        let seatScore = fulfilled * (student.weight || 1);
-        if (fulfilled > 0) seatScore += bonusParameter;
+        let baseScore = fulfilled * (student.weight || 1);
+        let seatScore = fulfilled > 0 ? baseScore * bonusParameter : baseScore;        
         score += seatScore;
       });
       // Bottom row seats.
@@ -85,8 +85,8 @@ function evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfi
         if (table.top[i] && student.wishes.includes(table.top[i])) fulfilled += 1;
         if (i > 0 && table.top[i-1] && student.wishes.includes(table.top[i-1])) fulfilled += 0.8;
         if (i < table.bottom.length - 1 && table.top[i+1] && student.wishes.includes(table.top[i+1])) fulfilled += 0.8;
-        let seatScore = fulfilled * (student.weight || 1);
-        if (fulfilled > 0) seatScore += bonusParameter;
+        let baseScore = fulfilled * (student.weight || 1);
+        let seatScore = fulfilled > 0 ? baseScore * bonusParameter : baseScore;        
         score += seatScore;
       });
       // Bonus seats.
@@ -98,8 +98,8 @@ function evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfi
               let fulfilled = 0;
               if (table.top[0] && student.wishes.includes(table.top[0])) fulfilled += 1;
               if (table.bottom[0] && student.wishes.includes(table.bottom[0])) fulfilled += 1;
-              let seatScore = fulfilled * (student.weight || 1);
-              if (fulfilled > 0) seatScore += bonusParameter;
+              let baseScore = fulfilled * (student.weight || 1);
+              let seatScore = fulfilled > 0 ? baseScore * bonusParameter : baseScore;              
               score += seatScore;
            }
         }
@@ -113,8 +113,8 @@ function evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfi
               let lastIndex = table.top.length - 1;
               if (table.top[lastIndex] && student.wishes.includes(table.top[lastIndex])) fulfilled += 1;
               if (table.bottom[lastIndex] && student.wishes.includes(table.bottom[lastIndex])) fulfilled += 1;
-              let seatScore = fulfilled * (student.weight || 1);
-              if (fulfilled > 0) seatScore += bonusParameter;
+              let baseScore = fulfilled * (student.weight || 1);
+              let seatScore = fulfilled > 0 ? baseScore * bonusParameter : baseScore;              
               score += seatScore;
            }
         }
@@ -207,11 +207,7 @@ function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusCon
 function deepCopy(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
-function isPerfectSeating(arrangement, studentsMap) {
-    // For each table and for each occupied seat, check if the student gets at least one wish fulfilled.
-    // Return true only if every student with wishes has at least one neighbor fulfilling a wish.
-    // (Implement this based on your rules for neighbor satisfaction.)
-    // Example (pseudocode):
+  function isPerfectSeating(arrangement, studentsMap) {
     let allSatisfied = true;
     arrangement.forEach(table => {
       // Check top row.
@@ -220,19 +216,62 @@ function isPerfectSeating(arrangement, studentsMap) {
         const student = studentsMap[studentName];
         if (!student) return;
         let fulfilled = 0;
-        // Check left neighbor.
+        // Check left and right neighbors in top row.
         if (i > 0 && table.top[i - 1] && student.wishes.includes(table.top[i - 1])) fulfilled++;
-        // Check right neighbor.
         if (i < table.top.length - 1 && table.top[i + 1] && student.wishes.includes(table.top[i + 1])) fulfilled++;
-        // Check opposite and diagonals similarly...
+        // Check corresponding bottom row and its adjacent seats.
+        if (table.bottom[i] && student.wishes.includes(table.bottom[i])) fulfilled++;
+        if (i > 0 && table.bottom[i - 1] && student.wishes.includes(table.bottom[i - 1])) fulfilled++;
+        if (i < table.bottom.length - 1 && table.bottom[i + 1] && student.wishes.includes(table.bottom[i + 1])) fulfilled++;
         if (fulfilled === 0 && student.wishes.length > 0) {
           allSatisfied = false;
         }
       });
-      // Similarly check bottom row and bonus seats.
+      // Check bottom row.
+      table.bottom.forEach((studentName, i) => {
+        if (!studentName) return;
+        const student = studentsMap[studentName];
+        if (!student) return;
+        let fulfilled = 0;
+        if (i > 0 && table.bottom[i - 1] && student.wishes.includes(table.bottom[i - 1])) fulfilled++;
+        if (i < table.bottom.length - 1 && table.bottom[i + 1] && student.wishes.includes(table.bottom[i + 1])) fulfilled++;
+        if (table.top[i] && student.wishes.includes(table.top[i])) fulfilled++;
+        if (i > 0 && table.top[i - 1] && student.wishes.includes(table.top[i - 1])) fulfilled++;
+        if (i < table.top.length - 1 && table.top[i + 1] && student.wishes.includes(table.top[i + 1])) fulfilled++;
+        if (fulfilled === 0 && student.wishes.length > 0) {
+          allSatisfied = false;
+        }
+      });
+      // Check bonus seats.
+      if (table.bonus) {
+        if (table.bonus.left) {
+          const student = studentsMap[table.bonus.left];
+          if (student) {
+            let fulfilled = 0;
+            if (table.top[0] && student.wishes.includes(table.top[0])) fulfilled++;
+            if (table.bottom[0] && student.wishes.includes(table.bottom[0])) fulfilled++;
+            if (fulfilled === 0 && student.wishes.length > 0) {
+              allSatisfied = false;
+            }
+          }
+        }
+        if (table.bonus.right) {
+          const student = studentsMap[table.bonus.right];
+          if (student) {
+            let fulfilled = 0;
+            const last = table.top.length - 1;
+            if (table.top[last] && student.wishes.includes(table.top[last])) fulfilled++;
+            if (table.bottom[last] && student.wishes.includes(table.bottom[last])) fulfilled++;
+            if (fulfilled === 0 && student.wishes.length > 0) {
+              allSatisfied = false;
+            }
+          }
+        }
+      }
     });
     return allSatisfied;
   }
+  
   
   // New robust simulated annealing optimization.
   // Parameters:
@@ -246,7 +285,7 @@ function isPerfectSeating(arrangement, studentsMap) {
     const iterations = options.iterations || 1500000;
     let T = options.initialTemperature || 300;
     const coolingRate = options.coolingRate || 0.99998; // Slow cooling for high precision.
-    const earlyStop = options.earlyStop || true;  // If true, exit once a perfect seating is found.
+    const earlyStop = (options.earlyStop === undefined ? true : options.earlyStop);
   
     // Get a deep copy of the current arrangement.
     let currentArrangement = deepCopy(initialArrangement);
@@ -380,7 +419,8 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
     const seatsPerTable = parseInt(req.body.seatsPerTable);
     const bonusParameter = parseFloat(req.body.bonusParameter);
     const bonusConfig = req.body.bonusConfig; // "none", "left", "right", or "both"
-    
+    const earlyStop = req.body.earlyStop === 'on' ? true : false;
+
     // New: Layout configuration.
     const layoutMode = req.body.layoutMode || 'auto';
     let layoutRows = 0, layoutColumns = 0;
@@ -417,6 +457,7 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
     req.session.bonusConfig = bonusConfig;
     req.session.L = L;
     req.session.layoutMode = layoutMode;
+    req.session.earlyStop = earlyStop;
     if (layoutMode === 'custom') {
       req.session.layoutRows = layoutRows;
       req.session.layoutColumns = layoutColumns;
@@ -553,7 +594,8 @@ app.post('/arrange', (req, res) => {
     let optimizedArrangement = optimizeSeatingSimulatedAnnealing(seatingArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, {
         iterations: 200000,         
         initialTemperature: 100,
-        coolingRate: 0.99995
+        coolingRate: 0.99995,
+        earlyStop: req.session.earlyStop
     });
 
     // Compute statistics.
@@ -657,7 +699,11 @@ app.post('/swap', (req, res) => {
     res.json({ seatingArrangement, stats, bonusConfig });
 
   });
-  
+app.get('/loadArrangement', (req, res) => {
+  // Render a view (loadArrangement.pug) that uses client-side code to retrieve localStorage data.
+  res.render('loadArrangement');
+});
+   
 app.listen(port, () => {
     console.log(`SeatFinder app listening at http://localhost:${port}`);
 });

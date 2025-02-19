@@ -4,16 +4,19 @@ block content
   h1.mb-4 Final Seating Arrangement - Visualization
 
   // Control buttons for swapping and recalculating
-  div.mb-3
-    button#enableSwap.btn.btn-warning Swap Seats
-    button#confirmSwap.btn.btn-success.ms-2(style="display:none;") Confirm Swap
-    button#cancelSwap.btn.btn-secondary.ms-2(style="display:none;") Cancel Swap
-    span#swapMsg.ms-2(style="font-weight: bold;") 
-    button#recalcBtn.btn.btn-primary.ms-3 Recalculate Seating
+  div.mb-3.d-flex
+    div
+      button#enableSwap.btn.btn-warning Swap Seats
+      button#confirmSwap.btn.btn-success.ms-2(style="display:none;") Confirm Swap
+      button#cancelSwap.btn.btn-secondary.ms-2(style="display:none;") Cancel Swap
+      span#swapMsg.ms-2(style="font-weight: bold;") 
+      button#recalcBtn.btn.btn-primary.ms-3 Recalculate Seating
+    button#saveJsonBtn.btn.btn-info.ms-auto Save Arrangement as JSON
+
 
   // SVG container for pan/zoom.
   div#svg-container(style="width:100%; height:600px; border:1px solid #ccc; overflow:hidden; margin-bottom:20px;")
-    svg#seatSvg(width="3000" height="3000")
+    svg#seatSvg(width="5000" height="5000")
   
   // Side-by-side textual representation and statistics.
   div#textualRepresentation
@@ -74,6 +77,14 @@ block content
         const pct = parseFloat(item.percentage);
         return isNaN(pct) ? 0 : pct;
       });
+      window.currentSeatingArrangement = !{JSON.stringify(seatingArrangement)};
+      window.currentStats = !{JSON.stringify(stats)};
+      window.currentBonusConfig = "!{bonusConfig}";
+      window.currentLayoutMode = "!{layoutMode}";
+      window.currentLayoutRows = !{layoutRows || 'null'};
+      window.currentLayoutColumns = !{layoutColumns || 'null'};
+      window.currentL = !{L};
+
       const ctxBar = document.getElementById('barChart').getContext('2d');
       // Store bar chart instance globally.
       window.barChart = new Chart(ctxBar, {
@@ -318,6 +329,9 @@ block content
       })
       .then(response => response.json())
       .then(data => {
+        window.currentSeatingArrangement = data.seatingArrangement;
+        window.currentStats = data.stats;
+        window.currentBonusConfig = data.bonusConfig;
         svg.style.opacity = 0;
         setTimeout(() => {
           drawSVG(data.seatingArrangement);
@@ -435,6 +449,9 @@ block content
       })
       .then(response => response.json())
       .then(data => {
+        window.currentSeatingArrangement = data.seatingArrangement;
+        window.currentStats = data.stats;
+        window.currentBonusConfig = data.bonusConfig;
         const svg = document.getElementById('seatSvg');
         svg.style.opacity = 0;
         setTimeout(() => {
@@ -452,3 +469,27 @@ block content
         recalcBtn.textContent = "Recalculate Seating";
       });
     });
+  script.
+    document.getElementById('saveJsonBtn').addEventListener('click', function() {
+      const dataToSave = {
+        seatingArrangement: window.currentSeatingArrangement,
+        stats: window.currentStats,
+        bonusConfig: window.currentBonusConfig,
+        layoutMode: window.currentLayoutMode,    // e.g. "auto", "row", "column", "custom"
+        layoutRows: window.currentLayoutRows,      // if applicable
+        layoutColumns: window.currentLayoutColumns,
+        L: window.currentL  // store the current L value
+      };
+
+      const dataStr = JSON.stringify(dataToSave, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "seatingArrangement.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
