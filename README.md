@@ -4,18 +4,31 @@
 SeatFinder is a Node.js application that optimizes student seating arrangements using simulated annealing. It allows manual seat assignments along with automatic optimization and provides interactive visualizations.
 
 ## Features
-- Upload student data via an Excel file.
-- Automatic and manual seating assignment.
-- Custom table layout options:
-  - Automatic grid
-  - Single row or column
+- **Excel Import:**  
+  Upload student data via an Excel file (.xlsx) where:  
+  - **Column 1** contains the student name (e.g., "Firstname Surname").  
+  - **Column 2** contains zero to four comma-separated names representing seating wishes.  
+  - **Column 3** (optional) is a float (1–10) representing the student's weight. *(Note: This feature is highly untested; it might work, or might need further adjustments.)*
+- **Automatic & Manual Seating Assignment:**  
+  Generate an initial seating arrangement automatically, then refine it manually if needed.
+- **Custom Table Layout Options:**  
+  - Automatic grid  
+  - Single row or single column  
   - Custom grid with user-defined rows and columns
-- Bonus seating configurations (left, right, both).
-- Interactive seating visualization with SVG, pan, and zoom.
-- Real-time swapping of seats.
-- Save and load seating arrangements as JSON.
-- Detailed statistics and charts using Chart.js.
-
+- **Bonus Seating Configurations:**  
+  Option to add bonus seats at the table ends (left, right, or both).
+- **Interactive Visualization:**  
+  Display the seating arrangement as an interactive SVG with pan and zoom capabilities.
+- **Real-Time Swapping:**  
+  Interactively swap seats with immediate updates to the seating arrangement, statistics, and charts.
+- **Recalculate Seating:**  
+  Re-run the optimization for unassigned seats without losing manual assignments.
+- **Save & Load Arrangements:**  
+  Export the current seating arrangement (with statistics and grid settings) as a JSON file and load it later.
+- **Detailed Statistics & Charts:**  
+  View real-time seating statistics and advanced charts (using Chart.js).
+- **Configurable Optimization:**  
+  Adjust optimization parameters (iterations, temperature, cooling rate) and enable/disable an early stop option.
 ## Setup & Installation
 
 1. Ensure Node.js (v14 or later) is installed.
@@ -23,10 +36,7 @@ SeatFinder is a Node.js application that optimizes student seating arrangements 
    ```
    git clone <repository-url>
    ```
-3. Navigate to the project directory:
-   ```
-   cd /c:/Dev/seatFinder
-   ```
+3. Navigate to the project directory
 4. Install dependencies:
    ```
    npm install
@@ -45,7 +55,10 @@ SeatFinder is a Node.js application that optimizes student seating arrangements 
 1. On the home (setup) page, configure:
    - Number of tables and seats per table.
    - Bonus seating and table layout options.
-2. Upload an Excel file containing student names and seating preferences.
+2. - **Upload an Excel file (.xlsx)** where:
+  - **Column 1** contains the student name (e.g., "Firstname Surname").
+  - **Column 2** contains zero to four comma-separated names representing seating wishes.
+  - **Column 3** (optional) is a float (1–10) representing the student's weight. (this is highly untested, might work, might not)
 3. Alternatively, load a previously saved seating arrangement via JSON.
 4. Proceed to manually assign seats if desired using the interactive SVG view.
 5. Use available controls to swap seats, recalculate optimal seating, or save the current arrangement.
@@ -64,7 +77,7 @@ SeatFinder is a Node.js application that optimizes student seating arrangements 
 - Enable early stop to finish optimization once a perfect seating is found.
 
 ## License
-[Include license information if applicable]
+This project is licensed under the MIT License.
 
 ## Acknowledgements
 - Panzoom for interactive SVG functionality.
