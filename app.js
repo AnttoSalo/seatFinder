@@ -52,9 +52,8 @@ function parseExcelFile(fileBuffer) {
     return students;
 }
 
-// --- New Evaluation Function ---
-// Given the new table structure, compute the total seating score.
-// Updated evaluation function that adds a gap penalty.
+// --- Evaluation Function ---
+// Given the table structure, compute the total seating score.
 function evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfig) {
     let score = 0;
     // Evaluate wish fulfillment for top and bottom seats per table.
@@ -120,11 +119,10 @@ function evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfi
         }
       }
   
-      // --- New: Penalty for gaps in seating (to encourage contiguous seating)
-      const gapPenalty = 100; // Adjust this value as needed.
+      // --- Penalty for gaps in seating (to encourage contiguous seating)
+      const gapPenalty = 100; // Guess, maybe need to adjust
       ['top', 'bottom'].forEach(side => {
         const row = table[side];
-        // Find indices where the seat is occupied.
         const filledIndices = row.map((seat, idx) => seat ? idx : -1).filter(idx => idx >= 0);
         if (filledIndices.length > 0) {
           const minIdx = Math.min(...filledIndices);
@@ -145,7 +143,7 @@ function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusCon
     let countWithWishes = 0;
     let percentageList = [];
     let noneFulfilled = [];
-    // Helper to process a seat given its neighbors.
+ 
     function processSeat(studentName, neighbors) {
       if (!studentName) return;
       let student = studentsMap[studentName];
@@ -203,11 +201,11 @@ function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusCon
     let avgFulfilled = countWithWishes ? (totalFulfilled / countWithWishes).toFixed(1) : "N/A";
     return { percentageList, noneFulfilled, averageFulfilled: avgFulfilled };
 }
-// Helper: deep copy an object.
 function deepCopy(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
-  function isPerfectSeating(arrangement, studentsMap) {
+
+function isPerfectSeating(arrangement, studentsMap) {
     let allSatisfied = true;
     arrangement.forEach(table => {
       // Check top row.
@@ -273,14 +271,14 @@ function deepCopy(obj) {
   }
   
   
-  // New robust simulated annealing optimization.
+  //  Robust simulated annealing optimization.
   // Parameters:
   // - initialArrangement: the starting seating arrangement (2D structure per table)
   // - fixedCoords: coordinates of manually fixed seats (which are never swapped)
   // - studentsMap: mapping from student names to their info
   // - bonusParameter, L, bonusConfig: parameters for scoring
   // - options: object with keys: iterations, initialTemperature, coolingRate
-  function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, options = {}) {
+function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, options = {}) {
     // Parameters – you can adjust these further.
     const iterations = options.iterations || 1500000;
     let T = options.initialTemperature || 300;
@@ -485,9 +483,9 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
       bonusParameter, 
       bonusConfig, 
       L,
-      layoutMode,        // ensure this is defined
-      layoutRows,        // if applicable
-      layoutColumns      // if applicable
+      layoutMode,        
+      layoutRows,        
+      layoutColumns      
     });
     
 });
@@ -637,7 +635,7 @@ app.post('/recalculate', (req, res) => {
   let newArrangement = optimizeSeatingSimulatedAnnealing(seatingArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, {
       iterations: 500000,
       initialTemperature: 400,
-      coolingRate: 0.99999
+      coolingRate: 0.99998
   });
 
   // Update session.
