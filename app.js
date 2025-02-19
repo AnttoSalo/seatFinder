@@ -4,6 +4,7 @@ const multer = require('multer');
 const xlsx = require('xlsx');
 const session = require('express-session');
 const bodyParser = require('body-parser');
+const seedrandom = require('seedrandom');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -14,6 +15,7 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
+Math.random = seedrandom('2192025133')
 
 app.use(session({
     secret: 'seatfindersecret',
@@ -137,89 +139,6 @@ function evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfi
     return score;
   }
   
-
-// Heuristic optimization: swap free (non-fixed) seats randomly to improve score.
-function optimizeSeating(arrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, iterations = 1000) {
-    // Deep-copy the arrangement.
-    let bestArrangement = JSON.parse(JSON.stringify(arrangement));
-    let bestScore = evaluateSeating(bestArrangement, studentsMap, bonusParameter, L, bonusConfig);
-    
-    // Build list of free coordinates.
-    let freeCoords = [];
-    arrangement.forEach((table, t) => {
-      // Top seats
-      table.top.forEach((seat, i) => {
-        if (!fixedCoords.some(c => c.table === t && c.section === 'top' && c.index === i)) {
-          freeCoords.push({ table: t, section: 'top', index: i });
-        }
-      });
-      // Bottom seats
-      table.bottom.forEach((seat, i) => {
-        if (!fixedCoords.some(c => c.table === t && c.section === 'bottom' && c.index === i)) {
-          freeCoords.push({ table: t, section: 'bottom', index: i });
-        }
-      });
-      // Bonus seats if applicable.
-      if (bonusConfig === 'left' || bonusConfig === 'both') {
-        if (!fixedCoords.some(c => c.table === t && c.section === 'bonus_left')) {
-          freeCoords.push({ table: t, section: 'bonus_left' });
-        }
-      }
-      if (bonusConfig === 'right' || bonusConfig === 'both') {
-        if (!fixedCoords.some(c => c.table === t && c.section === 'bonus_right')) {
-          freeCoords.push({ table: t, section: 'bonus_right' });
-        }
-      }
-    });
-    
-    for (let iter = 0; iter < iterations; iter++) {
-      let idx1 = Math.floor(Math.random() * freeCoords.length);
-      let idx2 = Math.floor(Math.random() * freeCoords.length);
-      if (idx1 === idx2) continue;
-      let coord1 = freeCoords[idx1];
-      let coord2 = freeCoords[idx2];
-      
-      // Swap the two seats.
-      function getSeat(arr, coord) {
-        let table = arr[coord.table];
-        if (coord.section === 'top' || coord.section === 'bottom') {
-          return table[coord.section][coord.index];
-        } else if (coord.section === 'bonus_left') {
-          return table.bonus.left;
-        } else if (coord.section === 'bonus_right') {
-          return table.bonus.right;
-        }
-      }
-      
-      function setSeat(arr, coord, value) {
-        let table = arr[coord.table];
-        if (coord.section === 'top' || coord.section === 'bottom') {
-          table[coord.section][coord.index] = value;
-        } else if (coord.section === 'bonus_left') {
-          table.bonus.left = value;
-        } else if (coord.section === 'bonus_right') {
-          table.bonus.right = value;
-        }
-      }
-      
-      let temp = getSeat(arrangement, coord1);
-      setSeat(arrangement, coord1, getSeat(arrangement, coord2));
-      setSeat(arrangement, coord2, temp);
-      
-      let currentScore = evaluateSeating(arrangement, studentsMap, bonusParameter, L, bonusConfig);
-      if (currentScore >= bestScore) {
-          bestScore = currentScore;
-          bestArrangement = JSON.parse(JSON.stringify(arrangement));
-      } else {
-          // Revert swap.
-          temp = getSeat(arrangement, coord1);
-          setSeat(arrangement, coord1, getSeat(arrangement, coord2));
-          setSeat(arrangement, coord2, temp);
-      }
-    }
-    return bestArrangement;
-}
-
 // Compute statistics similar to evaluation, but per student.
 function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusConfig) {
     let totalFulfilled = 0;
@@ -288,6 +207,32 @@ function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusCon
 function deepCopy(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
+function isPerfectSeating(arrangement, studentsMap) {
+    // For each table and for each occupied seat, check if the student gets at least one wish fulfilled.
+    // Return true only if every student with wishes has at least one neighbor fulfilling a wish.
+    // (Implement this based on your rules for neighbor satisfaction.)
+    // Example (pseudocode):
+    let allSatisfied = true;
+    arrangement.forEach(table => {
+      // Check top row.
+      table.top.forEach((studentName, i) => {
+        if (!studentName) return;
+        const student = studentsMap[studentName];
+        if (!student) return;
+        let fulfilled = 0;
+        // Check left neighbor.
+        if (i > 0 && table.top[i - 1] && student.wishes.includes(table.top[i - 1])) fulfilled++;
+        // Check right neighbor.
+        if (i < table.top.length - 1 && table.top[i + 1] && student.wishes.includes(table.top[i + 1])) fulfilled++;
+        // Check opposite and diagonals similarly...
+        if (fulfilled === 0 && student.wishes.length > 0) {
+          allSatisfied = false;
+        }
+      });
+      // Similarly check bottom row and bonus seats.
+    });
+    return allSatisfied;
+  }
   
   // New robust simulated annealing optimization.
   // Parameters:
@@ -296,10 +241,12 @@ function deepCopy(obj) {
   // - studentsMap: mapping from student names to their info
   // - bonusParameter, L, bonusConfig: parameters for scoring
   // - options: object with keys: iterations, initialTemperature, coolingRate
-function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, options = {}) {
-    const iterations = options.iterations || 100000;
-    let T = options.initialTemperature || 100;
-    const coolingRate = options.coolingRate || 0.99995; // slow cooling for high precision
+  function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, options = {}) {
+    // Parameters – you can adjust these further.
+    const iterations = options.iterations || 1500000;
+    let T = options.initialTemperature || 300;
+    const coolingRate = options.coolingRate || 0.99998; // Slow cooling for high precision.
+    const earlyStop = options.earlyStop || true;  // If true, exit once a perfect seating is found.
   
     // Get a deep copy of the current arrangement.
     let currentArrangement = deepCopy(initialArrangement);
@@ -307,7 +254,7 @@ function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, stud
     let bestArrangement = deepCopy(currentArrangement);
     let bestScore = currentScore;
   
-    // Build a list of free coordinates (not fixed) across all tables.
+    // Build a list of free coordinates (seats not fixed).
     let freeCoords = [];
     currentArrangement.forEach((table, t) => {
       table.top.forEach((seat, i) => {
@@ -355,7 +302,7 @@ function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, stud
       }
     }
   
-    // Main SA loop.
+    // Main simulated annealing loop.
     for (let iter = 0; iter < iterations; iter++) {
       // Randomly pick two distinct free seats.
       let idx1 = Math.floor(Math.random() * freeCoords.length);
@@ -364,7 +311,7 @@ function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, stud
       let coord1 = freeCoords[idx1];
       let coord2 = freeCoords[idx2];
   
-      // Create a candidate by swapping the two seats.
+      // Create a candidate arrangement by swapping the two seats.
       let candidateArrangement = deepCopy(currentArrangement);
       let temp = getSeat(candidateArrangement, coord1);
       setSeat(candidateArrangement, coord1, getSeat(candidateArrangement, coord2));
@@ -373,22 +320,51 @@ function optimizeSeatingSimulatedAnnealing(initialArrangement, fixedCoords, stud
       let candidateScore = evaluateSeating(candidateArrangement, studentsMap, bonusParameter, L, bonusConfig);
       let delta = candidateScore - currentScore;
   
-      // If candidate is better, or accept with probability exp(delta/T) if worse.
+      // Accept the candidate if it's better or with probability exp(delta/T) if worse.
       if (delta >= 0 || Math.random() < Math.exp(delta / T)) {
         currentArrangement = candidateArrangement;
         currentScore = candidateScore;
         if (currentScore > bestScore) {
           bestScore = currentScore;
           bestArrangement = deepCopy(currentArrangement);
+          // Early stop if perfect seating is achieved.
+          if (earlyStop && isPerfectSeating(bestArrangement, studentsMap)) {
+            return bestArrangement;
+          }
         }
       }
   
-      // Cooling.
+      // Cooling schedule.
       T *= coolingRate;
-      if (T < 1e-8) T = 1e-8; // avoid T becoming 0.
+      if (T < 1e-8) T = 1e-8; // Avoid T becoming zero.
     }
+  
+    // --- Local Search Phase ---
+    // Greedily attempt swaps among free seats until no further improvement is found.
+    let improvement = true;
+    while (improvement) {
+      improvement = false;
+      for (let i = 0; i < freeCoords.length; i++) {
+        for (let j = i + 1; j < freeCoords.length; j++) {
+          let coord1 = freeCoords[i];
+          let coord2 = freeCoords[j];
+          let candidateArrangement = deepCopy(bestArrangement);
+          let temp = getSeat(candidateArrangement, coord1);
+          setSeat(candidateArrangement, coord1, getSeat(candidateArrangement, coord2));
+          setSeat(candidateArrangement, coord2, temp);
+          let candidateScore = evaluateSeating(candidateArrangement, studentsMap, bonusParameter, L, bonusConfig);
+          if (candidateScore > bestScore) {
+            bestScore = candidateScore;
+            bestArrangement = deepCopy(candidateArrangement);
+            improvement = true;
+          }
+        }
+      }
+    }
+  
     return bestArrangement;
   }
+  
   
 // Routes
 
@@ -460,7 +436,19 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
     }
     
     req.session.seatingArrangement = seatingArrangement;
-    res.render('seating', { seatingArrangement, students, numTables, seatsPerTable, bonusParameter, bonusConfig, L });
+    res.render('seating', { 
+      seatingArrangement, 
+      students, 
+      numTables, 
+      seatsPerTable, 
+      bonusParameter, 
+      bonusConfig, 
+      L,
+      layoutMode,        // ensure this is defined
+      layoutRows,        // if applicable
+      layoutColumns      // if applicable
+    });
+    
 });
 
 
@@ -572,8 +560,8 @@ app.post('/arrange', (req, res) => {
     let stats = computeStatistics(optimizedArrangement, studentsMap, bonusParameter, L, bonusConfig);
 
     // Update session with the optimized arrangement.
+    req.session.fixedCoords = fixedCoords;
     req.session.seatingArrangement = optimizedArrangement;
-
     // Render the result using the optimized arrangement.
     res.render('result', { 
     seatingArrangement: optimizedArrangement, 
@@ -589,6 +577,35 @@ app.post('/arrange', (req, res) => {
     });
 
 });
+app.post('/recalculate', (req, res) => {
+  // Retrieve current seating arrangement and fixed coordinates from session.
+  let seatingArrangement = req.session.seatingArrangement;
+  const fixedCoords = req.session.fixedCoords;
+  const studentsMap = req.session.studentsMap;
+  const bonusParameter = req.session.bonusParameter;
+  const L = req.session.L;
+  const bonusConfig = req.session.bonusConfig;
+
+  if (!seatingArrangement || !fixedCoords) {
+    return res.status(400).json({ error: "Missing seating arrangement or fixed seats." });
+  }
+
+  // Re-run the simulated annealing optimizer on the current seating,
+  // but leaving fixed seats unchanged.
+  let newArrangement = optimizeSeatingSimulatedAnnealing(seatingArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, {
+      iterations: 500000,
+      initialTemperature: 400,
+      coolingRate: 0.99999
+  });
+
+  // Update session.
+  req.session.seatingArrangement = newArrangement;
+  // Recalculate statistics.
+  const stats = computeStatistics(newArrangement, studentsMap, bonusParameter, L, bonusConfig);
+
+  res.json({ seatingArrangement: newArrangement, stats, bonusConfig });
+});
+
 app.post('/swap', (req, res) => {
     const seat1 = req.body.seat1;
     const seat2 = req.body.seat2;
@@ -637,7 +654,8 @@ app.post('/swap', (req, res) => {
     const stats = computeStatistics(seatingArrangement, studentsMap, bonusParameter, L, bonusConfig);
     
     req.session.seatingArrangement = seatingArrangement;
-    res.json({ seatingArrangement, stats });
+    res.json({ seatingArrangement, stats, bonusConfig });
+
   });
   
 app.listen(port, () => {
