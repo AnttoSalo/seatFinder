@@ -11,6 +11,7 @@ It uses a simulated annealing algorithm to find ideal seating configuration (goe
   - **Column 1** contains the student name (e.g., "Firstname Surname").  
   - **Column 2** contains zero to four comma-separated names representing seating wishes.  
   - **Column 3** (optional) is a float (1–10) representing the student's weight. *(Note: This feature is highly untested; it might work, or might need further adjustments.)*
+  Example sheet in this repository, see: seating_wishes_80.xlsx
 - **Automatic & Manual Seating Assignment:**  
   You can manually set seats before generating automatic seating arrangement. After generating the arrangement you can then refine it manually if needed.
 - **Custom Table Layout Options:**  
