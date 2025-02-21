@@ -711,6 +711,12 @@ app.get('/loadArrangement', (req, res) => {
   res.render('loadArrangement');
 });
    
-app.listen(port, () => {
+if (require.main === module) {
+  app.listen(port, () => {
     console.log(`SeatFinder app listening at http://localhost:${port}`);
-});
+  });
+}
+
+// Export the app and the deepCopy helper.
+module.exports = app;
+module.exports.deepCopy = deepCopy;
