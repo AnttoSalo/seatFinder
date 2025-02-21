@@ -7,7 +7,8 @@ const bodyParser = require('body-parser');
 const seedrandom = require('seedrandom');
 
 const app = express();
-const port = process.env.PORT || 5000;
+const config = require('./config');
+const port = config.port;
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -18,9 +19,9 @@ app.set('views', path.join(__dirname, 'views'));
 Math.random = seedrandom('2192025133')
 
 app.use(session({
-    secret: 'seatfindersecret',
-    resave: false,
-    saveUninitialized: true
+  secret: config.sessionSecret,
+  resave: false,
+  saveUninitialized: true
 }));
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -589,12 +590,20 @@ app.post('/arrange', (req, res) => {
     // Optimize seating.
     // Instead of using the old optimizeSeating, call:
     // Optimize seating.
-    let optimizedArrangement = optimizeSeatingSimulatedAnnealing(seatingArrangement, fixedCoords, studentsMap, bonusParameter, L, bonusConfig, {
-        iterations: 200000,         
-        initialTemperature: 100,
-        coolingRate: 0.99995,
-        earlyStop: req.session.earlyStop
-    });
+    let optimizedArrangement = optimizeSeatingSimulatedAnnealing(
+      seatingArrangement,
+      fixedCoords,
+      studentsMap,
+      bonusParameter,
+      L,
+      bonusConfig,
+      {
+        iterations: config.optimization.iterations,
+        initialTemperature: config.optimization.initialTemperature,
+        coolingRate: config.optimization.coolingRate,
+        earlyStop: config.optimization.earlyStop
+      }
+    );
 
     // Compute statistics.
     let stats = computeStatistics(optimizedArrangement, studentsMap, bonusParameter, L, bonusConfig);
