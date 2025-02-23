@@ -527,6 +527,8 @@ pub fn swap_seats(
 }
 
 // Modified simulated annealing function that returns both the best arrangement and a PerformanceLog.
+// This version implements an adaptive cooling schedule: every window (10,000 iterations),
+// we update the temperature based on the acceptance ratio.
 pub fn optimize_seating_simulated_annealing(
     initial_arrangement: SeatingArrangement,
     fixed_coords: Vec<Coordinate>,
@@ -547,6 +549,11 @@ pub fn optimize_seating_simulated_annealing(
     let mut best_score = current_score;
     let mut temperature = initial_temperature;
     let mut log_messages = Vec::new();
+
+    // Parameters for adaptive cooling.
+    let window_size = 10_000;
+    let target_acceptance = 0.25;
+    let mut accepted_moves = 0;
 
     // Build free coordinates.
     let total_tables = current_arrangement.tables.len();
@@ -596,7 +603,7 @@ pub fn optimize_seating_simulated_annealing(
 
     let mut rng = thread_rng();
 
-    // Main simulated annealing loop.
+    // Main simulated annealing loop with adaptive cooling.
     for iter in 0..iterations {
         if free_coords.len() < 2 { break; }
         if iter % 100_000 == 0 {
@@ -632,7 +639,9 @@ pub fn optimize_seating_simulated_annealing(
 
         let delta = new_local_score - old_local_score;
         let candidate_score = current_score + delta;
+        // Adaptive acceptance check.
         if delta >= 0.0 || rng.gen_bool((delta / temperature).exp().min(1.0)) {
+            accepted_moves += 1;
             current_score = candidate_score;
             if current_score > best_score {
                 best_arrangement = current_arrangement.clone();
@@ -646,9 +655,20 @@ pub fn optimize_seating_simulated_annealing(
             // Revert the swap.
             swap_seats(&mut current_arrangement, &coord1, &coord2);
         }
-        temperature *= cooling_rate;
-        if temperature < 1e-8 {
-            temperature = 1e-8;
+        // Every window_size iterations, adjust the temperature adaptively.
+        if (iter + 1) % window_size == 0 {
+            let acceptance_ratio = accepted_moves as f64 / window_size as f64;
+            if acceptance_ratio > target_acceptance * 1.1 {
+                temperature *= 0.90; // cool faster
+            } else if acceptance_ratio < target_acceptance * 0.9 {
+                temperature *= 0.95; // cool slower (or reheat slightly)
+            } else {
+                temperature *= cooling_rate;
+            }
+            if temperature < 1e-8 {
+                temperature = 1e-8;
+            }
+            accepted_moves = 0; // reset window counter
         }
     }
 
