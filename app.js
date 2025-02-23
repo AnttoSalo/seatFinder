@@ -730,6 +730,12 @@ app.post('/settings', (req, res) => {
 
 	res.redirect('/settings');
 });
+app.get('/instructions', (req, res) => {
+	const lang = req.query.lang || 'en';
+	res.render('instructions', {
+		lang: lang
+	});
+});
 
 if (require.main === module) {
 	app.listen(port, () => {

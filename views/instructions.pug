@@ -1,0 +1,153 @@
+extends layout
+
+block content
+    h1.mb-4 Instructions
+
+    // Language toggle links as Bootstrap button-links.
+    div.mb-3
+        a.btn.btn-link(href="/instructions?lang=en", class=(lang === 'en' ? 'fw-bold' : '')) English
+        |  |  
+        a.btn.btn-link(href="/instructions?lang=fi", class=(lang === 'fi' ? 'fw-bold' : '')) Finnish
+
+    if lang === 'en'
+        h2 How to Use SeatFinder (English)
+        p.lead Welcome to SeatFinder! This application optimizes seating arrangements for student parties using a simulated annealing algorithm. Follow these steps to use the program:
+
+        h3.mt-4 1. Setup Page
+        div.list-group.mb-3
+            div.list-group-item
+                h6.mb-1 Configuration:
+                p.mb-0 
+                    | - Enter the number of tables and seats per table.
+                    br
+                    | - Choose the bonus seating configuration (The seats on the ends of the tables).
+                    br
+                    | - Specify the bonus parameter (multiplier to encourage the algorithm to fill at least one wish for everyone).
+                    br
+                    | - Select the table layout mode:
+            div.list-group-item.ms-3
+                p.mb-0 
+                    | * Automatic grid – an automatically calculated grid.
+            div.list-group-item.ms-3
+                p.mb-0 
+                    | * Single row – all tables in one row.
+            div.list-group-item.ms-3
+                p.mb-0 
+                    | * Single column – all tables in one column.
+            div.list-group-item.ms-3
+                p.mb-0 
+                    | * Custom grid – manually specify the number of rows and columns.
+            div.list-group-item
+                h6.mb-1 Early Stop Option:
+                p.mb-0 
+                    | - Check the "Early Stop" box to have the optimizer halt as soon as a perfect seating is found.
+            div.list-group-item
+                h6.mb-1 Data Upload:
+                p.mb-0 
+                    | - Upload an Excel file (.xlsx) with student data:
+                    br
+                    |   * Column 1: Student name (e.g., "Firstname Surname").
+                    br
+                    |   * Column 2: Comma-separated seating wishes.
+                    br
+                    |   * Column 3 (optional): A numeric weight.
+                    br
+                    | - Alternatively, load a previously saved seating arrangement from JSON.
+
+        h3.mt-4 2. Seating Assignment
+        div.list-group.mb-3
+            div.list-group-item
+                | You may manually assign specific seats if desired.
+            div.list-group-item
+                | The optimizer fills remaining seats using simulated annealing, considering seating wishes, bonus parameters, and gap penalties.
+
+        h3.mt-4 3. Visualization & Interaction
+        div.list-group.mb-3
+            div.list-group-item
+                | The seating arrangement is shown as an interactive SVG with pan and zoom capabilities.
+            div.list-group-item
+                | Use the "Swap Seats" feature to interactively swap seats; the UI updates the seating arrangement, statistics, and charts in real time.
+            div.list-group-item
+                | Click "Recalculate Seating" to re-optimize unassigned seats.
+
+        h3.mt-4 4. Saving and Loading Arrangements
+        div.list-group.mb-3
+            div.list-group-item
+                | Click "Save Arrangement as JSON" to export the current seating arrangement, statistics, and grid settings as a JSON file.
+            div.list-group-item
+                | Use the "Load from JSON" option on the setup page to load a previously saved arrangement.
+
+        h3.mt-4 5. Viewing Statistics and Charts
+        div.list-group
+            div.list-group-item
+                | Detailed statistics (e.g., average wishes fulfilled per student) are provided.
+            div.list-group-item
+                | Chart.js charts display visual breakdowns of wish fulfillment percentages.
+    else if lang === 'fi'
+        h2 Kuinka käyttää SeatFinderia (Finnish)
+        p.lead Tervetuloa SeatFinderiin! Tämä sovellus optimoi opiskelijoiden istumajärjestyksen juhlia varten käyttämällä simulated annealing -algoritmia. Seuraa alla olevia ohjeita:
+
+        h3.mt-4 1. Asetussivu
+        div.list-group.mb-3
+            div.list-group-item
+                | **Konfigurointi:**
+                br
+                | - Syötä pöytien lukumäärä ja kunkin pöydän istumapaikkojen määrä.
+                br
+                | - Valitse bonus-istumakonfiguraatio (Istumapaikat pöytien päässä).
+                br
+                | - Määritä bonus-parametri (kerroin sen painottamiseen, että jokainen saisi vähintään yhden toiveen läpi).
+                br
+                | - Valitse pöytäasettelumoodi:
+            div.list-group-item.ms-3
+                | * Automaattinen ruudukko – ohjelma laskee ruudukon automaattisesti.
+            div.list-group-item.ms-3
+                | * Yksi rivi – kaikki pöydät yhdessä rivissä.
+            div.list-group-item.ms-3
+                | * Yksi sarake – kaikki pöydät yhdessä sarakkeessa.
+            div.list-group-item.ms-3
+                | * Mukautettu ruudukko – määritä itse rivien ja sarakkeiden lukumäärä.
+            div.list-group-item
+                | **Early Stop -vaihtoehto:**
+                br
+                | - Valitse "Early Stop" -valintaruutu, jolloin optimointi pysähtyy heti, kun täydellinen istumajärjestys löytyy.
+            div.list-group-item
+                | **Tiedoston lataus:**
+                br
+                | - Lataa Excel-tiedosto (.xlsx), jossa on opiskelijoiden tiedot:
+                br
+                |   * Sarake 1: Opiskelijan nimi (esim. "Etunimi Sukunimi").
+                br
+                |   * Sarake 2: Pilkuilla erotetut istumatoiveet.
+                br
+                |   * Sarake 3 (valinnainen): Numeroarvo, joka edustaa painoarvoa.
+                br
+                | - Vaihtoehtoisesti, lataa aiemmin tallennettu istumajärjestys JSON-tiedostona.
+        h3.mt-4 2. Istumajärjestys
+        div.list-group.mb-3
+            div.list-group-item
+                | Ohjelma luo automaattisesti aloitusistumajärjestyksen.
+            div.list-group-item
+                | Voit manuaalisesti määrittää istumapaikat ennen optimointia.
+            div.list-group-item
+                | Optimointialgoritmi täyttää jäljellä olevat paikat simulated annealing -menetelmällä, huomioiden istumatoiveet ja aukkojen rangaistukset.
+        h3.mt-4 3. Visualisointi ja Vuorovaikutus
+        div.list-group.mb-3
+            div.list-group-item
+                | Istumajärjestys näytetään interaktiivisena SVG-kaaviona, jota voi zoomata ja panotoa.
+            div.list-group-item
+                | Käytä "Swap Seats" -toimintoa vaihtaaksesi istumapaikkoja interaktiivisesti. Näkymä, tilastot ja kaaviot päivittyvät reaaliaikaisesti.
+            div.list-group-item
+                | Klikkaa "Recalculate Seating" -painiketta optimoidaksesi uudelleen vapaiden paikkojen osalta.
+        h3.mt-4 4. Tallentaminen ja Lataaminen
+        div.list-group.mb-3
+            div.list-group-item
+                | Klikkaa "Save Arrangement as JSON" tallentaaksesi nykyisen istumajärjestyksen, tilastot ja ruudukkoasetukset JSON-tiedostoksi.
+            div.list-group-item
+                | Lataa tallennettu istumajärjestys käyttämällä "Load from JSON" -toimintoa asetussivulla.
+        h3.mt-4 5. Tilastojen ja Kaavioiden Tarkastelu
+        div.list-group
+            div.list-group-item
+                | Ohjelma näyttää yksityiskohtaiset tilastot (esim. opiskelijan toiveiden täyttöprosentti).
+            div.list-group-item
+                | Chart.js-kaaviot näyttävät visuaalisesti toiveiden täyttöprosenttien jakauman.
