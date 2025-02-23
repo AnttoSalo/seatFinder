@@ -1,0 +1,21 @@
+[package]
+name = "seat_finder_native"
+version = "0.1.0"
+authors = ["AnttoS <anttosalo3@gmail.com>"]
+license = "MIT"
+build = "build.rs"
+edition = "2018"
+exclude = ["artifacts.json", "index.node"]
+
+[lib]
+name = "seat_finder_native"
+crate-type = ["cdylib"]
+
+[build-dependencies]
+neon-build = "0.10.1"
+
+[dependencies]
+neon = "0.10"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
