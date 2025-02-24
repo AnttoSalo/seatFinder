@@ -1,0 +1,16 @@
+extends layout
+
+block content
+    h1.mb-4 Optimization Results
+    p
+        | Best Score (Average Fulfillment): 
+        strong #{bestScore}
+    h3 Best Parameters:
+    ul
+        li Initial Temperature: #{bestParams.initialTemperature}
+        li Cooling Rate: #{bestParams.coolingRate}
+    h3 Seating Arrangement:
+    pre= JSON.stringify(seatingArrangement, null, 2)
+    h3 Statistics:
+    pre= JSON.stringify(stats, null, 2)
+    a.btn.btn-secondary(href="/") Back to Home

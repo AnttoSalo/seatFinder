@@ -422,6 +422,105 @@ app.get('/instructions', (req, res) => {
 app.get('/', (req, res) => {
 	res.render('index');
 });
+// New GET route to render the optimization form.
+app.get('/optimize', (req, res) => {
+	res.render('optimize');
+});
+
+// New POST route to run the parameter search.
+app.post('/optimize', upload.single('excelFile'), (req, res) => {
+	// Parse basic seating parameters.
+	const numTables = parseInt(req.body.numTables);
+	const seatsPerTable = parseInt(req.body.seatsPerTable);
+	const bonusParameter = parseFloat(req.body.bonusParameter);
+	const bonusConfig = req.body.bonusConfig; // "none", "left", "right", or "both"
+	const earlyStop = req.body.earlyStop === 'on';
+	const layoutMode = req.body.layoutMode || 'auto';
+	let layoutRows = 0,
+		layoutColumns = 0;
+	if (layoutMode === 'custom') {
+		layoutRows = parseInt(req.body.layoutRows) || 0;
+		layoutColumns = parseInt(req.body.layoutColumns) || 0;
+	}
+
+	// Determine bonus count and L.
+	let bonusCount = 0;
+	if (bonusConfig === 'left' || bonusConfig === 'right') bonusCount = 1;
+	else if (bonusConfig === 'both') bonusCount = 2;
+	if ((seatsPerTable - bonusCount) % 2 !== 0) {
+		return res.send('Error: (seats per table - bonus seats) must be divisible by 2.');
+	}
+	const L = (seatsPerTable - bonusCount) / 2;
+
+	// Parse the Excel file if provided.
+	let students = [];
+	if (req.file) {
+		students = parseExcelFile(req.file.buffer);
+	}
+	let studentsMap = {};
+	students.forEach((student) => {
+		studentsMap[student.name] = student;
+	});
+
+	// Create an initial seating arrangement.
+	let seatingArrangement = [];
+	for (let t = 0; t < numTables; t++) {
+		let table = {
+			top: new Array(L).fill(''),
+			bottom: new Array(L).fill(''),
+			bonus_left: bonusConfig === 'left' || bonusConfig === 'both' ? '' : null,
+			bonus_right: bonusConfig === 'right' || bonusConfig === 'both' ? '' : null
+		};
+		seatingArrangement.push(table);
+	}
+
+	// Read optimization parameter ranges from the form.
+	const iterations = parseInt(req.body.iterations) || 500000;
+	const initialTempMin = parseFloat(req.body.initialTempMin) || 800.0;
+	const initialTempMax = parseFloat(req.body.initialTempMax) || 800.0;
+	const initialTempStep = parseFloat(req.body.initialTempStep) || 0.0;
+	const coolingRateMin = parseFloat(req.body.coolingRateMin) || 0.99999;
+	const coolingRateMax = parseFloat(req.body.coolingRateMax) || 0.99999;
+	const coolingRateStep = parseFloat(req.body.coolingRateStep) || 0.0;
+
+	let bestScore = -Infinity;
+	let bestParams = {};
+	let bestArrangement = null;
+
+	// Loop over the range of initialTemperature and coolingRate.
+	// (If step is zero, the loop will run once with the min value.)
+	for (let initTemp = initialTempMin; initTemp <= initialTempMax; initTemp += initialTempStep || 1) {
+		for (let coolRate = coolingRateMin; coolRate <= coolingRateMax; coolRate += coolingRateStep || 0.00001) {
+			const resultJson = seatFinder.optimizeSeating(
+				JSON.stringify({tables: seatingArrangement}),
+				JSON.stringify([]), // no fixed coordinates in this optimization run
+				JSON.stringify(studentsMap),
+				bonusParameter,
+				bonusConfig,
+				iterations,
+				initTemp,
+				coolRate,
+				earlyStop
+			);
+			let arrangement = JSON.parse(resultJson);
+			let stats = computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusConfig);
+			// We use the average fulfilled percentage as a proxy for quality.
+			let avgFulfilled = parseFloat(stats.averageFulfilled) || 0;
+			if (avgFulfilled > bestScore) {
+				bestScore = avgFulfilled;
+				bestParams = {initialTemperature: initTemp, coolingRate: coolRate};
+				bestArrangement = arrangement;
+			}
+		}
+	}
+
+	res.render('optimizeResult', {
+		bestScore,
+		bestParams,
+		seatingArrangement: bestArrangement ? bestArrangement.tables : [],
+		stats: bestArrangement ? computeStatistics(bestArrangement, studentsMap, bonusParameter, L, bonusConfig) : {}
+	});
+});
 
 if (require.main === module) {
 	app.listen(port, () => {
