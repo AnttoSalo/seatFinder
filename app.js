@@ -428,6 +428,7 @@ app.get('/optimize', (req, res) => {
 });
 
 // New POST route to run the parameter search.
+// New POST route to run the parameter search.
 app.post('/optimize', upload.single('excelFile'), (req, res) => {
 	// Parse basic seating parameters.
 	const numTables = parseInt(req.body.numTables);
@@ -443,7 +444,7 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 		layoutColumns = parseInt(req.body.layoutColumns) || 0;
 	}
 
-	// Determine bonus count and L.
+	// Determine bonus count and compute L.
 	let bonusCount = 0;
 	if (bonusConfig === 'left' || bonusConfig === 'right') bonusCount = 1;
 	else if (bonusConfig === 'both') bonusCount = 2;
@@ -462,7 +463,7 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 		studentsMap[student.name] = student;
 	});
 
-	// Create an initial seating arrangement.
+	// Create initial seating arrangement using the new structure.
 	let seatingArrangement = [];
 	for (let t = 0; t < numTables; t++) {
 		let table = {
@@ -472,6 +473,37 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 			bonus_right: bonusConfig === 'right' || bonusConfig === 'both' ? '' : null
 		};
 		seatingArrangement.push(table);
+	}
+
+	// Randomly assign students to all free seats.
+	let freeCoords = [];
+	seatingArrangement.forEach((table, t) => {
+		table.top.forEach((seat, i) => {
+			if (!seat) freeCoords.push({table: t, section: 'top', index: i});
+		});
+		table.bottom.forEach((seat, i) => {
+			if (!seat) freeCoords.push({table: t, section: 'bottom', index: i});
+		});
+		if (bonusConfig === 'left' || bonusConfig === 'both') {
+			if (!table.bonus_left) freeCoords.push({table: t, section: 'bonus_left'});
+		}
+		if (bonusConfig === 'right' || bonusConfig === 'both') {
+			if (!table.bonus_right) freeCoords.push({table: t, section: 'bonus_right'});
+		}
+	});
+	// Shuffle students and assign to free seats.
+	students.sort(() => Math.random() - 0.5);
+	for (let i = 0; i < freeCoords.length && i < students.length; i++) {
+		let coord = freeCoords[i];
+		let name = students[i].name;
+		let table = seatingArrangement[coord.table];
+		if (coord.section === 'top' || coord.section === 'bottom') {
+			table[coord.section][coord.index] = name;
+		} else if (coord.section === 'bonus_left') {
+			table.bonus_left = name;
+		} else if (coord.section === 'bonus_right') {
+			table.bonus_right = name;
+		}
 	}
 
 	// Read optimization parameter ranges from the form.
@@ -493,7 +525,7 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 		for (let coolRate = coolingRateMin; coolRate <= coolingRateMax; coolRate += coolingRateStep || 0.00001) {
 			const resultJson = seatFinder.optimizeSeating(
 				JSON.stringify({tables: seatingArrangement}),
-				JSON.stringify([]), // no fixed coordinates in this optimization run
+				JSON.stringify([]), // no fixed coordinates for this run
 				JSON.stringify(studentsMap),
 				bonusParameter,
 				bonusConfig,
@@ -504,7 +536,7 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 			);
 			let arrangement = JSON.parse(resultJson);
 			let stats = computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusConfig);
-			// We use the average fulfilled percentage as a proxy for quality.
+			// Use the average fulfilled percentage as a quality metric.
 			let avgFulfilled = parseFloat(stats.averageFulfilled) || 0;
 			if (avgFulfilled > bestScore) {
 				bestScore = avgFulfilled;
