@@ -1,6 +1,7 @@
 use neon::prelude::*;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::channel;
 use std::thread;
@@ -787,7 +788,7 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsString> {
     let best_arrangement = parallel_annealing_search(
         initial_arrangement,
         fixed_coords,
-        students_map,
+        students_map.clone(),
         bonus_parameter,
         &bonus_config,
         iterations as usize,
