@@ -428,7 +428,6 @@ app.get('/optimize', (req, res) => {
 });
 
 // New POST route to run the parameter search.
-// New POST route to run the parameter search.
 app.post('/optimize', upload.single('excelFile'), (req, res) => {
 	// Parse basic seating parameters.
 	const numTables = parseInt(req.body.numTables);
@@ -507,6 +506,7 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 	}
 
 	// Read optimization parameter ranges from the form.
+	// Read optimization parameter ranges from the form.
 	const iterations = parseInt(req.body.iterations) || 500000;
 	const initialTempMin = parseFloat(req.body.initialTempMin) || 800.0;
 	const initialTempMax = parseFloat(req.body.initialTempMax) || 800.0;
@@ -534,14 +534,13 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 				coolRate,
 				earlyStop
 			);
-			let arrangement = JSON.parse(resultJson);
-			let stats = computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusConfig);
-			// Use the average fulfilled percentage as a quality metric.
-			let avgFulfilled = parseFloat(stats.averageFulfilled) || 0;
-			if (avgFulfilled > bestScore) {
-				bestScore = avgFulfilled;
+			let resultObj = JSON.parse(resultJson);
+			// Now use the evaluate_seating score from Rust
+			let score = resultObj.bestScore;
+			if (score > bestScore) {
+				bestScore = score;
 				bestParams = {initialTemperature: initTemp, coolingRate: coolRate};
-				bestArrangement = arrangement;
+				bestArrangement = resultObj.seatingArrangement;
 			}
 		}
 	}
@@ -549,8 +548,8 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 	res.render('optimizeResult', {
 		bestScore,
 		bestParams,
-		seatingArrangement: bestArrangement ? bestArrangement.tables : [],
-		stats: bestArrangement ? computeStatistics(bestArrangement, studentsMap, bonusParameter, L, bonusConfig) : {}
+		seatingArrangement: bestArrangement ? bestArrangement.tables : []
+		// Optionally, you can send additional stats computed on node side.
 	});
 });
 

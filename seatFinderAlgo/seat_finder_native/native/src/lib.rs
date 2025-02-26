@@ -797,7 +797,16 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsString> {
         6, // number of parallel runs; adjust as needed
     );
 
-    let result_json = serde_json::to_string(&best_arrangement)
+    // Instead of just serializing best_arrangement, also compute its score.
+    let wishes_map = build_wishes_map(&students_map);
+    let best_score = evaluate_seating(&best_arrangement, &students_map, &wishes_map, bonus_parameter, &bonus_config);
+
+    // Build a JSON object to return both pieces of information.
+    let result_obj = json!({
+        "seatingArrangement": best_arrangement,
+        "bestScore": best_score,
+    });
+    let result_json = serde_json::to_string(&result_obj)
         .or_else(|e| cx.throw_error(format!("Failed to serialize result: {:?}", e)))?;
     Ok(cx.string(result_json))
 }
