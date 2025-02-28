@@ -6,7 +6,7 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const seedrandom = require('seedrandom');
 const fs = require('fs');
-const seatFinder = require('./seatFinderAlgo/seat_finder_native/native');
+const seatFinder = require('./seat_finder_native/native');
 
 const app = express();
 const config = require('./config');
