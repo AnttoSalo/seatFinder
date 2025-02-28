@@ -13,22 +13,21 @@ block content
       button#recalcBtn.btn.btn-primary.ms-3 Recalculate Seating
     button#saveJsonBtn.btn.btn-info.ms-auto Save Arrangement as JSON
 
-
   // SVG container for pan/zoom.
   div#svg-container(style="width:100%; height:600px; border:1px solid #ccc; overflow:hidden; margin-bottom:20px;")
     svg#seatSvg(width="5000" height="5000")
-  
+
   // Side-by-side textual representation and statistics.
   div#textualRepresentation
     div.row
       // Left column: seating arrangement textual view.
       div.col-md-6
         h1.mb-4 Final Seating Arrangement (Textual)
-        each table, tIdx in seatingArrangement
+        each table, tIdx in seatingArrangement.tables
           div.table-text.mb-3
             h2 Table #{tIdx + 1}
             if bonusConfig === 'left' || bonusConfig === 'both'
-              p Bonus Left: #{table.bonus.left}
+              p Bonus Left: #{table.bonus_left}
             p Top Side:
             ul
               each seat in table.top
@@ -38,7 +37,7 @@ block content
               each seat in table.bottom
                 li= seat
             if bonusConfig === 'right' || bonusConfig === 'both'
-              p Bonus Right: #{table.bonus.right}
+              p Bonus Right: #{table.bonus_right}
       // Right column: statistics.
       div.col-md-6
         h2 Statistics
@@ -54,29 +53,10 @@ block content
               li= student
         else
           p None!
-  
-  // Advanced statistics charts.
-  h2.mt-4 Advanced Statistics
-  div.row
-    div.col-md-6
-      h4.text-center Fulfillment Percentage per Student
-      canvas#barChart(width="400" height="400")
-    div.col-md-6
-      h4.text-center Fulfillment Distribution
-      canvas#donutChart(width="400" height="400")
-  
-  // Include Chart.js from a CDN.
-  script(src="https://cdn.jsdelivr.net/npm/chart.js")
-  
-  // Chart initialization and update functions.
+
+  // Client-side scripts.
   script.
     document.addEventListener('DOMContentLoaded', function() {
-      const stats = !{JSON.stringify(stats)};
-      const labels = stats.percentageList.map(item => item.name);
-      const percentages = stats.percentageList.map(item => {
-        const pct = parseFloat(item.percentage);
-        return isNaN(pct) ? 0 : pct;
-      });
       window.currentSeatingArrangement = !{JSON.stringify(seatingArrangement)};
       window.currentStats = !{JSON.stringify(stats)};
       window.currentBonusConfig = "!{bonusConfig}";
@@ -84,99 +64,14 @@ block content
       window.currentLayoutRows = !{layoutRows || 'null'};
       window.currentLayoutColumns = !{layoutColumns || 'null'};
       window.currentL = !{L};
-
-      const ctxBar = document.getElementById('barChart').getContext('2d');
-      // Store bar chart instance globally.
-      window.barChart = new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Fulfillment Percentage',
-            data: percentages,
-            backgroundColor: 'rgba(54, 162, 235, 0.7)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: {
-              beginAtZero: true,
-              max: 100,
-              title: { display: true, text: '% Fulfilled' }
-            },
-            x: { title: { display: true, text: 'Students' } }
-          },
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: context => context.parsed.y + '%' } }
-          }
-        }
-      });
-      
-      const totalStudents = stats.percentageList.length;
-      const noFulfilled = stats.noneFulfilled.length;
-      const atLeastOneFulfilled = totalStudents - noFulfilled;
-      const ctxDonut = document.getElementById('donutChart').getContext('2d');
-      // Store donut chart instance globally.
-      window.donutChart = new Chart(ctxDonut, {
-        type: 'doughnut',
-        data: {
-          labels: ['No Fulfillment', 'At Least One Fulfilled'],
-          datasets: [{
-            data: [noFulfilled, atLeastOneFulfilled],
-            backgroundColor: ['rgba(255, 99, 132, 0.7)', 'rgba(75, 192, 192, 0.7)'],
-            borderColor: ['rgba(255, 99, 132, 1)', 'rgba(75, 192, 192, 1)'],
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'bottom' },
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  const label = context.label || '';
-                  const value = context.parsed;
-                  const percent = ((value / totalStudents) * 100).toFixed(1);
-                  return label + ': ' + value + ' (' + percent + '%)';
-                }
-              }
-            }
-          }
-        }
-      });
     });
-    
-    function updateCharts(newStats) {
-      const labels = newStats.percentageList.map(item => item.name);
-      const percentages = newStats.percentageList.map(item => {
-        const pct = parseFloat(item.percentage);
-        return isNaN(pct) ? 0 : pct;
-      });
-      if (window.barChart) {
-        window.barChart.data.labels = labels;
-        window.barChart.data.datasets[0].data = percentages;
-        window.barChart.update();
-      }
-      const totalStudents = newStats.percentageList.length;
-      const noFulfilled = newStats.noneFulfilled.length;
-      const atLeastOneFulfilled = totalStudents - noFulfilled;
-      if (window.donutChart) {
-        window.donutChart.data.datasets[0].data = [noFulfilled, atLeastOneFulfilled];
-        window.donutChart.update();
-      }
-    }
-  
+
   // Global variables and drawing functions.
   script.
     const seatingArrangement = !{JSON.stringify(seatingArrangement)};
     const bonusConfig = "!{bonusConfig}";
     const L = !{L};
-    const numTables = seatingArrangement.length;
+    const numTables = seatingArrangement.tables.length;
     const layoutMode = "!{layoutMode}";
     const layoutRows = !{layoutRows || 'null'};
     const layoutColumns = !{layoutColumns || 'null'};
@@ -225,7 +120,7 @@ block content
       while (svg.firstChild) {
         svg.removeChild(svg.firstChild);
       }
-      arrangement.forEach((table, tIdx) => {
+      arrangement.tables.forEach((table, tIdx) => {
         const col = tIdx % gridCols;
         const row = Math.floor(tIdx / gridCols);
         const offsetX = margin + col * tableSpacingX;
@@ -238,7 +133,7 @@ block content
         rect.setAttribute("fill", "#f8f9fa");
         rect.setAttribute("stroke", "#000");
         svg.appendChild(rect);
-        
+
         function drawSeat(x, y, name, seatId) {
           const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
           circle.setAttribute("cx", x);
@@ -260,7 +155,7 @@ block content
             svg.appendChild(text);
           }
         }
-        
+
         table.top.forEach((seat, i) => {
           const spacing = tableWidth / (L + 1);
           const x = offsetX + spacing * (i + 1);
@@ -279,13 +174,13 @@ block content
           const x = offsetX - seatMargin;
           const y = offsetY + tableHeight / 2;
           const seatId = `seat_t${tIdx}_bonus_left`;
-          drawSeat(x, y, table.bonus.left, seatId);
+          drawSeat(x, y, table.bonus_left, seatId);
         }
         if(bonusConfig === "right" || bonusConfig === "both") {
           const x = offsetX + tableWidth + seatMargin;
           const y = offsetY + tableHeight / 2;
           const seatId = `seat_t${tIdx}_bonus_right`;
-          drawSeat(x, y, table.bonus.right, seatId);
+          drawSeat(x, y, table.bonus_right, seatId);
         }
       });
       if (swapMode) attachSeatClickHandlers();
@@ -338,7 +233,7 @@ block content
           svg.style.opacity = 1;
         }, 300);
         updateTextualRepresentation(data);
-        updateCharts(data.stats);
+        // Note: updateCharts call removed as charts are not used.
         swapMsg.textContent = "Swap completed.";
         swapMode = false;
         selectedSeats = [];
@@ -399,21 +294,21 @@ block content
       // Left column: seating arrangement textual view.
       html += '<div class="col-md-6">';
       html += '<h1 class="mb-4">Final Seating Arrangement (Textual)</h1>';
-      data.seatingArrangement.forEach((table, tIdx) => {
+      data.seatingArrangement.tables.forEach((table, tIdx) => {
         html += `<div class="table-text mb-3"><h2>Table ${tIdx+1}</h2>`;
         if(bonusCfg === 'left' || bonusCfg === 'both')
-          html += `<p>Bonus Left: ${table.bonus.left || ""}</p>`;
+          html += `<p>Bonus Left: ${table.bonus_left || ""}</p>`;
         html += `<p>Top Side:</p><ul>`;
         table.top.forEach(seat => { html += `<li>${seat || ""}</li>`; });
         html += `</ul><p>Bottom Side:</p><ul>`;
         table.bottom.forEach(seat => { html += `<li>${seat || ""}</li>`; });
         html += `</ul>`;
         if(bonusCfg === 'right' || bonusCfg === 'both')
-          html += `<p>Bonus Right: ${table.bonus.right || ""}</p>`;
+          html += `<p>Bonus Right: ${table.bonus_right || ""}</p>`;
         html += `</div>`;
       });
       html += '</div>'; // end left column
-      
+
       // Right column: statistics.
       html += '<div class="col-md-6">';
       html += '<h2>Statistics</h2>';
@@ -437,7 +332,6 @@ block content
       document.getElementById('textualRepresentation').innerHTML = html;
     }
 
-
     document.getElementById('recalcBtn').addEventListener('click', function() {
       const recalcBtn = document.getElementById('recalcBtn');
       recalcBtn.disabled = true;
@@ -459,7 +353,6 @@ block content
           svg.style.opacity = 1;
         }, 300);
         updateTextualRepresentation(data);
-        updateCharts(data.stats);
         recalcBtn.disabled = false;
         recalcBtn.textContent = "Recalculate Seating";
       })
@@ -469,16 +362,16 @@ block content
         recalcBtn.textContent = "Recalculate Seating";
       });
     });
-  script.
+
     document.getElementById('saveJsonBtn').addEventListener('click', function() {
       const dataToSave = {
         seatingArrangement: window.currentSeatingArrangement,
         stats: window.currentStats,
         bonusConfig: window.currentBonusConfig,
-        layoutMode: window.currentLayoutMode,    // e.g. "auto", "row", "column", "custom"
-        layoutRows: window.currentLayoutRows,      // if applicable
+        layoutMode: window.currentLayoutMode,
+        layoutRows: window.currentLayoutRows,
         layoutColumns: window.currentLayoutColumns,
-        L: window.currentL  // store the current L value
+        L: window.currentL
       };
 
       const dataStr = JSON.stringify(dataToSave, null, 2);
@@ -492,4 +385,3 @@ block content
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     });
-

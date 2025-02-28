@@ -6,7 +6,7 @@ block content
   // SVG container for the visual representation.
   div#svg-container(style="width:100%; height:600px; border:1px solid #ccc; overflow:hidden; margin-bottom:20px;")
     svg#seatSvg(width="5000" height="5000")
-  
+
   // A container for the textual seating & stats if desired.
   div#textualRepresentation
 
@@ -23,7 +23,7 @@ block content
 
       // Retrieve saved grid/layout parameters from the loaded JSON.
       // These should have been saved along with the arrangement.
-      const seatingArrangement = dataLoaded.seatingArrangement;
+      const seatingArrangement = dataLoaded.seatingArrangement.tables;
       const bonusConfig = dataLoaded.bonusConfig;
       const savedL = dataLoaded.L;  // number of seats per long side
       const layoutMode = dataLoaded.layoutMode || "auto";
@@ -42,7 +42,7 @@ block content
       const margin = 100;
       const tableSpacingX = tableWidth + 200;
       const tableSpacingY = tableHeight + 200;
-      
+
       // Compute grid dimensions using the saved layout info.
       let gridCols, gridRows;
       if (layoutMode === "row") {
@@ -58,7 +58,7 @@ block content
         gridCols = Math.ceil(Math.sqrt(seatingArrangement.length));
         gridRows = Math.ceil(seatingArrangement.length / gridCols);
       }
-      
+
       // Define the drawSVG function using the above values.
       function drawSVG(arrangement) {
         const svg = document.getElementById('seatSvg');
@@ -78,7 +78,7 @@ block content
           rect.setAttribute("fill", "#f8f9fa");
           rect.setAttribute("stroke", "#000");
           svg.appendChild(rect);
-          
+
           function drawSeat(x, y, name, seatId) {
             const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
             circle.setAttribute("cx", x);
@@ -100,7 +100,7 @@ block content
               svg.appendChild(text);
             }
           }
-          
+
           table.top.forEach((seat, i) => {
             const spacing = tableWidth / (L + 1);
             const x = offsetX + spacing * (i + 1);
@@ -119,46 +119,46 @@ block content
             const x = offsetX - seatMargin;
             const y = offsetY + tableHeight / 2;
             const seatId = `seat_t${tIdx}_bonus_left`;
-            drawSeat(x, y, table.bonus.left, seatId);
+            drawSeat(x, y, table.bonus_left, seatId);
           }
           if(bonusConfig === "right" || bonusConfig === "both") {
             const x = offsetX + tableWidth + seatMargin;
             const y = offsetY + tableHeight / 2;
             const seatId = `seat_t${tIdx}_bonus_right`;
-            drawSeat(x, y, table.bonus.right, seatId);
+            drawSeat(x, y, table.bonus_right, seatId);
           }
         });
       }
-      
+
       drawSVG(seatingArrangement);
-      
+
       // Initialize Panzoom.
       const panZoomInstance = Panzoom(document.getElementById('seatSvg'), { contain: 'outside' });
       document.getElementById('svg-container').addEventListener('wheel', panZoomInstance.zoomWithWheel);
-      
+
       // Update textual representation (if needed).
       function updateTextualRepresentation(data) {
         const bonusCfg = data.bonusConfig;
         let html = '<div class="row">';
-        
+
         // Left column: seating arrangement textual view.
         html += '<div class="col-md-6">';
         html += '<h1 class="mb-4">Final Seating Arrangement (Textual)</h1>';
         data.seatingArrangement.forEach((table, tIdx) => {
           html += `<div class="table-text mb-3"><h2>Table ${tIdx+1}</h2>`;
           if(bonusCfg === 'left' || bonusCfg === 'both')
-            html += `<p>Bonus Left: ${table.bonus.left || ""}</p>`;
+            html += `<p>Bonus Left: ${table.bonus_left || ""}</p>`;
           html += `<p>Top Side:</p><ul>`;
           table.top.forEach(seat => { html += `<li>${seat || ""}</li>`; });
           html += `</ul><p>Bottom Side:</p><ul>`;
           table.bottom.forEach(seat => { html += `<li>${seat || ""}</li>`; });
           html += `</ul>`;
           if(bonusCfg === 'right' || bonusCfg === 'both')
-            html += `<p>Bonus Right: ${table.bonus.right || ""}</p>`;
+            html += `<p>Bonus Right: ${table.bonus_right || ""}</p>`;
           html += `</div>`;
         });
         html += '</div>'; // end left column
-        
+
         // Right column: statistics.
         html += '<div class="col-md-6">';
         html += '<h2>Statistics</h2>';
@@ -179,13 +179,13 @@ block content
           html += '<p>None!</p>';
         }
         html += '</div>'; // end right column
-        
+
         html += '</div>'; // end row
 
         document.getElementById('textualRepresentation').innerHTML = html;
       }
 
-      
+
       updateTextualRepresentation(dataLoaded);
     })();
 

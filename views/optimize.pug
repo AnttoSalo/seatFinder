@@ -1,0 +1,50 @@
+extends layout
+
+block content
+    h1.mb-4 Optimization Parameter Search, Doesn't Really Work, You can play around with it though
+    form(method="POST" action="/optimize" enctype="multipart/form-data")
+        .mb-3
+            label.form-label(for="numTables") Number of Tables:
+            input.form-control(type="number" name="numTables" id="numTables", required)
+        .mb-3
+            label.form-label(for="seatsPerTable") Seats per Table:
+            input.form-control(type="number" name="seatsPerTable" id="seatsPerTable", required)
+        .mb-3
+            label.form-label(for="bonusConfig") Bonus Seats Configuration:
+            select.form-select(name="bonusConfig" id="bonusConfig")
+                option(value="none") None
+                option(value="left") Left
+                option(value="right") Right
+                option(value="both") Both
+        .mb-3
+            label.form-label(for="bonusParameter") Bonus Parameter:
+            input.form-control(type="number" step="0.1" name="bonusParameter" id="bonusParameter" value="1.0", required)
+        .mb-3
+            label.form-label Early Stop:
+            input.form-check-input(type="checkbox" name="earlyStop" id="earlyStop")
+        .mb-3
+            label.form-label(for="iterations") Number of Iterations:
+            input.form-control(type="number" name="iterations" id="iterations" value="500000", required)
+        h3 Optimization Parameter Ranges
+        .mb-3
+            label.form-label(for="initialTempMin") Initial Temperature Min:
+            input.form-control(type="number" step="0.1" name="initialTempMin" id="initialTempMin" value="800.0", required)
+        .mb-3
+            label.form-label(for="initialTempMax") Initial Temperature Max:
+            input.form-control(type="number" step="0.1" name="initialTempMax" id="initialTempMax" value="800.0", required)
+        .mb-3
+            label.form-label(for="initialTempStep") Initial Temperature Step:
+            input.form-control(type="number" step="0.1" name="initialTempStep" id="initialTempStep" value="0.0", required)
+        .mb-3
+            label.form-label(for="coolingRateMin") Cooling Rate Min:
+            input.form-control(type="number" step="0.00001" name="coolingRateMin" id="coolingRateMin" value="0.99999", required)
+        .mb-3
+            label.form-label(for="coolingRateMax") Cooling Rate Max:
+            input.form-control(type="number" step="0.00001" name="coolingRateMax" id="coolingRateMax" value="0.99999", required)
+        .mb-3
+            label.form-label(for="coolingRateStep") Cooling Rate Step:
+            input.form-control(type="number" step="0.00001" name="coolingRateStep" id="coolingRateStep" value="0.0", required)
+        .mb-3
+            label.form-label(for="excelFile") Upload Excel File (.xlsx):
+            input.form-control(type="file" name="excelFile" id="excelFile" accept=".xlsx")
+        button.btn.btn-primary(type="submit") Run Optimization
