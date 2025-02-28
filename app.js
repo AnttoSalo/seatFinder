@@ -12,6 +12,61 @@ const app = express();
 const config = require('./config');
 const port = config.port;
 
+// SeatingArrangement class encapsulating the seating data and helper methods.
+class SeatingArrangement {
+	constructor(tables = []) {
+		this.tables = tables;
+	}
+	// Factory method to create an empty seating arrangement.
+	static createEmpty(numTables, L, bonusConfig) {
+		let tables = [];
+		for (let t = 0; t < numTables; t++) {
+			let table = {
+				top: new Array(L).fill(''),
+				bottom: new Array(L).fill(''),
+				bonus_left: bonusConfig === 'left' || bonusConfig === 'both' ? '' : null,
+				bonus_right: bonusConfig === 'right' || bonusConfig === 'both' ? '' : null
+			};
+			tables.push(table);
+		}
+		return new SeatingArrangement(tables);
+	}
+	// Returns the value in the seat given the coordinate.
+	getSeat(coord) {
+		let table = this.tables[coord.table];
+		if (!table) return undefined;
+		if (coord.section === 'top' || coord.section === 'bottom') {
+			return table[coord.section][coord.index];
+		} else if (coord.section === 'bonus_left') {
+			return table.bonus_left;
+		} else if (coord.section === 'bonus_right') {
+			return table.bonus_right;
+		}
+	}
+	// Sets a seat value at the given coordinate.
+	setSeat(coord, value) {
+		let table = this.tables[coord.table];
+		if (!table) return;
+		if (coord.section === 'top' || coord.section === 'bottom') {
+			table[coord.section][coord.index] = value;
+		} else if (coord.section === 'bonus_left') {
+			table.bonus_left = value;
+		} else if (coord.section === 'bonus_right') {
+			table.bonus_right = value;
+		}
+	}
+	// Swaps seats between two coordinates.
+	swapSeats(coord1, coord2) {
+		let temp = this.getSeat(coord1);
+		this.setSeat(coord1, this.getSeat(coord2));
+		this.setSeat(coord2, temp);
+	}
+	// Ensure JSON.stringify returns an object with tables.
+	toJSON() {
+		return {tables: this.tables};
+	}
+}
+
 // Middleware
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
@@ -29,8 +84,10 @@ app.use(
 );
 
 const upload = multer({storage: multer.memoryStorage()});
+
 function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusConfig) {
-	arrangement = arrangement.tables;
+	// arrangement is expected to be an instance of SeatingArrangement (or an object with a "tables" property)
+	const tables = arrangement.tables;
 	let totalFulfilled = 0;
 	let countWithWishes = 0;
 	let percentageList = [];
@@ -54,14 +111,12 @@ function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusCon
 			percentageList.push({name: studentName, percentage: 'N/A'});
 		}
 	}
-	arrangement.forEach((table) => {
+	tables.forEach((table) => {
 		// Top row
 		table.top.forEach((studentName, i) => {
 			let neighbors = [];
-			// Same side
 			if (i > 0) neighbors.push(table.top[i - 1]);
 			if (i < table.top.length - 1) neighbors.push(table.top[i + 1]);
-			// Opposite and diagonals
 			neighbors.push(table.bottom[i]);
 			if (i > 0) neighbors.push(table.bottom[i - 1]);
 			if (i < table.bottom.length - 1) neighbors.push(table.bottom[i + 1]);
@@ -79,12 +134,12 @@ function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusCon
 		});
 		// Bonus seats
 		if (bonusConfig === 'left' || bonusConfig === 'both') {
-			let studentName = table.bonus.left;
+			let studentName = table.bonus_left;
 			let neighbors = [table.top[0], table.bottom[0]];
 			processSeat(studentName, neighbors);
 		}
 		if (bonusConfig === 'right' || bonusConfig === 'both') {
-			let studentName = table.bonus.right;
+			let studentName = table.bonus_right;
 			let last = table.top.length - 1;
 			let neighbors = [table.top[last], table.bottom[last]];
 			processSeat(studentName, neighbors);
@@ -93,10 +148,7 @@ function computeStatistics(arrangement, studentsMap, bonusParameter, L, bonusCon
 	let avgFulfilled = countWithWishes ? (totalFulfilled / countWithWishes).toFixed(1) : 'N/A';
 	return {percentageList, noneFulfilled, averageFulfilled: avgFulfilled};
 }
-// Parse Excel file; expects:
-//  - Column1: student name ("Firstname Surname")
-//  - Column2: comma-separated list of wishes
-//  - Column3: optional float (weight)
+
 function parseExcelFile(fileBuffer) {
 	const workbook = xlsx.read(fileBuffer, {type: 'buffer'});
 	const sheetName = workbook.SheetNames[0];
@@ -123,12 +175,12 @@ function parseExcelFile(fileBuffer) {
 	return students;
 }
 
-// POST /upload: Process the form and Excel file, create the initial seating arrangement using the new table structure.
+// POST /upload: Create initial seating arrangement.
 app.post('/upload', upload.single('excelFile'), (req, res) => {
 	const numTables = parseInt(req.body.numTables);
 	const seatsPerTable = parseInt(req.body.seatsPerTable);
 	const bonusParameter = parseFloat(req.body.bonusParameter);
-	const bonusConfig = req.body.bonusConfig; // "none", "left", "right", or "both"
+	const bonusConfig = req.body.bonusConfig;
 	const earlyStop = req.body.earlyStop === 'on';
 
 	const layoutMode = req.body.layoutMode || 'auto';
@@ -144,10 +196,10 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
 	else if (bonusConfig === 'both') bonusCount = 2;
 
 	if ((seatsPerTable - bonusCount) % 2 !== 0) {
-		return res.send('Error: For the selected bonus configuration, (seats per table - bonus seats) must be divisible by 2. Please go back and adjust your seating capacity.');
+		return res.send('Error: For the selected bonus configuration, (seats per table - bonus seats) must be divisible by 2.');
 	}
 
-	const L = (seatsPerTable - bonusCount) / 2; // seats per long side
+	const L = (seatsPerTable - bonusCount) / 2;
 
 	let students = [];
 	if (req.file) {
@@ -158,7 +210,6 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
 		studentsMap[student.name] = student;
 	});
 
-	// Save parameters in session.
 	req.session.students = students;
 	req.session.studentsMap = studentsMap;
 	req.session.numTables = numTables;
@@ -173,21 +224,12 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
 		req.session.layoutColumns = layoutColumns;
 	}
 
-	// Create initial seating arrangement using the new structure.
-	let seatingArrangement = [];
-	for (let t = 0; t < numTables; t++) {
-		let table = {
-			top: new Array(L).fill(''),
-			bottom: new Array(L).fill(''),
-			bonus_left: bonusConfig === 'left' || bonusConfig === 'both' ? '' : null,
-			bonus_right: bonusConfig === 'right' || bonusConfig === 'both' ? '' : null
-		};
-		seatingArrangement.push(table);
-	}
-
+	// Create an empty seating arrangement using the class.
+	const seatingArrangement = SeatingArrangement.createEmpty(numTables, L, bonusConfig);
 	req.session.seatingArrangement = seatingArrangement;
+
 	res.render('seating', {
-		seatingArrangement,
+		seatingArrangement, // The instance exposes its tables via seatingArrangement.tables
 		students,
 		numTables,
 		seatsPerTable,
@@ -200,7 +242,7 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
 	});
 });
 
-// POST /arrange: Process manual seat assignments and optimize seating using the Rust Neon function.
+// POST /arrange: Build seating arrangement from form and optimize.
 app.post('/arrange', (req, res) => {
 	const numTables = parseInt(req.body.numTables);
 	const seatsPerTable = parseInt(req.body.seatsPerTable);
@@ -208,9 +250,8 @@ app.post('/arrange', (req, res) => {
 	const bonusConfig = req.body.bonusConfig;
 	const L = parseInt(req.body.L);
 
-	// Build seating arrangement from form using the new table structure.
-	let seatingArrangement = [];
-	let fixedCoords = []; // Manually fixed seat coordinates.
+	let seatingArr = [];
+	let fixedCoords = [];
 
 	for (let t = 0; t < numTables; t++) {
 		let table = {
@@ -229,11 +270,12 @@ app.post('/arrange', (req, res) => {
 			table.top[i] = req.body[`seat_${t}_top_${i}`] ? req.body[`seat_${t}_top_${i}`].trim() : '';
 			table.bottom[i] = req.body[`seat_${t}_bottom_${i}`] ? req.body[`seat_${t}_bottom_${i}`].trim() : '';
 		}
-		seatingArrangement.push(table);
+		seatingArr.push(table);
 	}
+	// Create a new SeatingArrangement instance from the form data.
+	let seatingArrangement = new SeatingArrangement(seatingArr);
 
-	// Record fixed seats.
-	seatingArrangement.forEach((table, t) => {
+	seatingArr.forEach((table, t) => {
 		table.top.forEach((seat, i) => {
 			if (seat) fixedCoords.push({table: t, section: 'top', index: i});
 		});
@@ -248,12 +290,14 @@ app.post('/arrange', (req, res) => {
 		}
 	});
 
-	// Determine remaining students (those not manually assigned).
+	// **Fix:** Store fixedCoords in the session so that /recalculate can access them.
+	req.session.fixedCoords = fixedCoords;
+
 	let students = req.session.students || [];
 	let assigned = new Set();
 	fixedCoords.forEach((coord) => {
+		let table = seatingArr[coord.table];
 		let seat;
-		let table = seatingArrangement[coord.table];
 		if (coord.section === 'top' || coord.section === 'bottom') {
 			seat = table[coord.section][coord.index];
 		} else if (coord.section === 'bonus_left') {
@@ -266,9 +310,8 @@ app.post('/arrange', (req, res) => {
 	let remainingStudents = students.filter((s) => !assigned.has(s.name));
 	remainingStudents.sort(() => Math.random() - 0.5);
 
-	// Randomly assign remaining students to free seats.
 	let freeCoords = [];
-	seatingArrangement.forEach((table, t) => {
+	seatingArr.forEach((table, t) => {
 		table.top.forEach((seat, i) => {
 			if (!seat) freeCoords.push({table: t, section: 'top', index: i});
 		});
@@ -285,7 +328,7 @@ app.post('/arrange', (req, res) => {
 	for (let i = 0; i < freeCoords.length && i < remainingStudents.length; i++) {
 		let coord = freeCoords[i];
 		let name = remainingStudents[i].name;
-		let table = seatingArrangement[coord.table];
+		let table = seatingArr[coord.table];
 		if (coord.section === 'top' || coord.section === 'bottom') {
 			table[coord.section][coord.index] = name;
 		} else if (coord.section === 'bonus_left') {
@@ -297,18 +340,19 @@ app.post('/arrange', (req, res) => {
 
 	let studentsMap = req.session.studentsMap || {};
 
-	// Optimize seating using the Rust Neon function.
+	// Optimize seating via the Neon function.
 	const iterations = 1200000;
-	const initialTemperature = 800.0;
-	const coolingRate = 0.99999;
+	const initialTemperature = 1200.0;
+	const coolingRate = 0.999991;
 	const earlyStopFlag = true;
-	const resultJson = seatFinder.optimizeSeating(JSON.stringify({tables: seatingArrangement}), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
-	let optimizedArrangement = JSON.parse(resultJson);
+	const resultJson = seatFinder.optimizeSeating(JSON.stringify(seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
+	let resultObj = JSON.parse(resultJson);
+	let optimizedArrangement = new SeatingArrangement(resultObj.seatingArrangement.tables);
 
 	let stats = computeStatistics(optimizedArrangement, studentsMap, bonusParameter, L, bonusConfig);
 	req.session.seatingArrangement = optimizedArrangement;
 	res.render('result', {
-		seatingArrangement: optimizedArrangement.tables,
+		seatingArrangement: optimizedArrangement,
 		numTables,
 		seatsPerTable,
 		bonusParameter,
@@ -321,9 +365,11 @@ app.post('/arrange', (req, res) => {
 	});
 });
 
-// POST /recalculate: Re-run optimization using the Rust function.
+// POST /recalculate: Re-run optimization.
 app.post('/recalculate', (req, res) => {
-	let seatingArrangement = req.session.seatingArrangement;
+	// Re-instantiate the seating arrangement if necessary.
+	let seatingArrangementObj = req.session.seatingArrangement;
+	let seatingArrangement = new SeatingArrangement(seatingArrangementObj.tables);
 	const fixedCoords = req.session.fixedCoords;
 	const studentsMap = req.session.studentsMap;
 	const bonusParameter = req.session.bonusParameter;
@@ -338,8 +384,9 @@ app.post('/recalculate', (req, res) => {
 	const initialTemperature = 400;
 	const coolingRate = 0.99998;
 	const earlyStopFlag = false;
-	const resultJson = seatFinder.optimizeSeating(JSON.stringify({tables: seatingArrangement}), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
-	let newArrangement = JSON.parse(resultJson);
+	const resultJson = seatFinder.optimizeSeating(JSON.stringify(seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
+	let resultObj = JSON.parse(resultJson);
+	let newArrangement = new SeatingArrangement(resultObj.seatingArrangement.tables);
 	req.session.seatingArrangement = newArrangement;
 	res.json({seatingArrangement: newArrangement, bonusConfig});
 });
@@ -350,42 +397,20 @@ app.post('/swap', (req, res) => {
 	const seat2 = req.body.seat2;
 	console.log('Received swap payload:', req.body);
 
-	let seatingArrangement = req.session.seatingArrangement;
-	if (!seatingArrangement) {
+	let seatingArrangementObj = req.session.seatingArrangement;
+	if (!seatingArrangementObj) {
 		return res.status(400).json({error: 'No seating arrangement found.'});
 	}
 	if (!seat1 || !seat2) {
 		return res.status(400).json({error: 'Swap coordinates are missing.'});
 	}
-
-	// Helper functions for swapping.
-	function getSeat(arr, coord) {
-		let table = arr[coord.table];
-		if (coord.section === 'top' || coord.section === 'bottom') {
-			return table[coord.section][coord.index];
-		} else if (coord.section === 'bonus_left') {
-			return table.bonus_left;
-		} else if (coord.section === 'bonus_right') {
-			return table.bonus_right;
-		}
-	}
-	function setSeat(arr, coord, value) {
-		let table = arr[coord.table];
-		if (coord.section === 'top' || coord.section === 'bottom') {
-			table[coord.section][coord.index] = value;
-		} else if (coord.section === 'bonus_left') {
-			table.bonus_left = value;
-		} else if (coord.section === 'bonus_right') {
-			table.bonus_right = value;
-		}
-	}
-
-	let temp = getSeat(seatingArrangement, seat1);
-	setSeat(seatingArrangement, seat1, getSeat(seatingArrangement, seat2));
-	setSeat(seatingArrangement, seat2, temp);
-
+	// Recreate the instance from the stored object.
+	let seatingArrangement = new SeatingArrangement(seatingArrangementObj.tables);
+	// Use the class method to swap seats.
+	seatingArrangement.swapSeats(seat1, seat2);
+	let stats = computeStatistics(seatingArrangement, req.session.studentsMap, req.session.bonusParameter, req.session.L, req.session.bonusConfig);
 	req.session.seatingArrangement = seatingArrangement;
-	res.json({seatingArrangement});
+	res.json({seatingArrangement, stats});
 });
 
 app.get('/loadArrangement', (req, res) => {
@@ -422,6 +447,7 @@ app.get('/instructions', (req, res) => {
 app.get('/', (req, res) => {
 	res.render('index');
 });
+
 // New GET route to render the optimization form.
 app.get('/optimize', (req, res) => {
 	res.render('optimize');
@@ -429,11 +455,10 @@ app.get('/optimize', (req, res) => {
 
 // New POST route to run the parameter search.
 app.post('/optimize', upload.single('excelFile'), (req, res) => {
-	// Parse basic seating parameters.
 	const numTables = parseInt(req.body.numTables);
 	const seatsPerTable = parseInt(req.body.seatsPerTable);
 	const bonusParameter = parseFloat(req.body.bonusParameter);
-	const bonusConfig = req.body.bonusConfig; // "none", "left", "right", or "both"
+	const bonusConfig = req.body.bonusConfig;
 	const earlyStop = req.body.earlyStop === 'on';
 	const layoutMode = req.body.layoutMode || 'auto';
 	let layoutRows = 0,
@@ -443,7 +468,6 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 		layoutColumns = parseInt(req.body.layoutColumns) || 0;
 	}
 
-	// Determine bonus count and compute L.
 	let bonusCount = 0;
 	if (bonusConfig === 'left' || bonusConfig === 'right') bonusCount = 1;
 	else if (bonusConfig === 'both') bonusCount = 2;
@@ -452,7 +476,6 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 	}
 	const L = (seatsPerTable - bonusCount) / 2;
 
-	// Parse the Excel file if provided.
 	let students = [];
 	if (req.file) {
 		students = parseExcelFile(req.file.buffer);
@@ -462,21 +485,11 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 		studentsMap[student.name] = student;
 	});
 
-	// Create initial seating arrangement using the new structure.
-	let seatingArrangement = [];
-	for (let t = 0; t < numTables; t++) {
-		let table = {
-			top: new Array(L).fill(''),
-			bottom: new Array(L).fill(''),
-			bonus_left: bonusConfig === 'left' || bonusConfig === 'both' ? '' : null,
-			bonus_right: bonusConfig === 'right' || bonusConfig === 'both' ? '' : null
-		};
-		seatingArrangement.push(table);
-	}
+	// Create an empty seating arrangement using the class.
+	let seatingArrangement = SeatingArrangement.createEmpty(numTables, L, bonusConfig);
 
-	// Randomly assign students to all free seats.
 	let freeCoords = [];
-	seatingArrangement.forEach((table, t) => {
+	seatingArrangement.tables.forEach((table, t) => {
 		table.top.forEach((seat, i) => {
 			if (!seat) freeCoords.push({table: t, section: 'top', index: i});
 		});
@@ -490,12 +503,11 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 			if (!table.bonus_right) freeCoords.push({table: t, section: 'bonus_right'});
 		}
 	});
-	// Shuffle students and assign to free seats.
 	students.sort(() => Math.random() - 0.5);
 	for (let i = 0; i < freeCoords.length && i < students.length; i++) {
 		let coord = freeCoords[i];
 		let name = students[i].name;
-		let table = seatingArrangement[coord.table];
+		let table = seatingArrangement.tables[coord.table];
 		if (coord.section === 'top' || coord.section === 'bottom') {
 			table[coord.section][coord.index] = name;
 		} else if (coord.section === 'bonus_left') {
@@ -505,8 +517,6 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 		}
 	}
 
-	// Read optimization parameter ranges from the form.
-	// Read optimization parameter ranges from the form.
 	const iterations = parseInt(req.body.iterations) || 500000;
 	const initialTempMin = parseFloat(req.body.initialTempMin) || 800.0;
 	const initialTempMax = parseFloat(req.body.initialTempMax) || 800.0;
@@ -519,28 +529,15 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 	let bestParams = {};
 	let bestArrangement = null;
 
-	// Loop over the range of initialTemperature and coolingRate.
-	// (If step is zero, the loop will run once with the min value.)
 	for (let initTemp = initialTempMin; initTemp <= initialTempMax; initTemp += initialTempStep || 1) {
 		for (let coolRate = coolingRateMin; coolRate <= coolingRateMax; coolRate += coolingRateStep || 0.00001) {
-			const resultJson = seatFinder.optimizeSeating(
-				JSON.stringify({tables: seatingArrangement}),
-				JSON.stringify([]), // no fixed coordinates for this run
-				JSON.stringify(studentsMap),
-				bonusParameter,
-				bonusConfig,
-				iterations,
-				initTemp,
-				coolRate,
-				earlyStop
-			);
+			const resultJson = seatFinder.optimizeSeating(JSON.stringify(seatingArrangement), JSON.stringify([]), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initTemp, coolRate, earlyStop);
 			let resultObj = JSON.parse(resultJson);
-			// Now use the evaluate_seating score from Rust
 			let score = resultObj.bestScore;
 			if (score > bestScore) {
 				bestScore = score;
 				bestParams = {initialTemperature: initTemp, coolingRate: coolRate};
-				bestArrangement = resultObj.seatingArrangement;
+				bestArrangement = new SeatingArrangement(resultObj.seatingArrangement.tables);
 			}
 		}
 	}
@@ -548,8 +545,7 @@ app.post('/optimize', upload.single('excelFile'), (req, res) => {
 	res.render('optimizeResult', {
 		bestScore,
 		bestParams,
-		seatingArrangement: bestArrangement ? bestArrangement.tables : []
-		// Optionally, you can send additional stats computed on node side.
+		seatingArrangement: bestArrangement ? bestArrangement : SeatingArrangement.createEmpty(0, 0, bonusConfig)
 	});
 });
 

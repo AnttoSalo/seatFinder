@@ -3,48 +3,43 @@ extends layout
 block content
   h1.mb-4 Manual Seat Assignment
   p.mb-3 Pre-assign students by clicking on seats in the visualization below. Leave blank to let the algorithm assign.
-  form(method="POST", action="/arrange", id="assignmentForm")
-    // Pass configuration parameters as hidden fields.
-    input(type="hidden", name="numTables", value=numTables)
-    input(type="hidden", name="seatsPerTable", value=seatsPerTable)
-    input(type="hidden", name="bonusParameter", value=bonusParameter)
-    input(type="hidden", name="bonusConfig", value=bonusConfig)
-    input(type="hidden", name="L", value=L)
-    // Pass the layout configuration as hidden fields.
-    input(type="hidden", name="layoutMode", value=layoutMode)
+  form(method="POST" action="/arrange" id="assignmentForm")
+    // Hidden fields for configuration.
+    input(type="hidden" name="numTables", value=numTables)
+    input(type="hidden" name="seatsPerTable", value=seatsPerTable)
+    input(type="hidden" name="bonusParameter", value=bonusParameter)
+    input(type="hidden" name="bonusConfig", value=bonusConfig)
+    input(type="hidden" name="L", value=L)
+    input(type="hidden" name="layoutMode", value=layoutMode)
     if layoutMode === 'custom'
-      input(type="hidden", name="layoutRows", value=layoutRows)
-      input(type="hidden", name="layoutColumns", value=layoutColumns)
-  
-    // For each seat, generate a corresponding hidden input.
-    each table, tIdx in seatingArrangement
-      // Top row seats.
+      input(type="hidden" name="layoutRows", value=layoutRows)
+      input(type="hidden" name="layoutColumns", value=layoutColumns)
+    // For each seat, generate a hidden input.
+    each table, tIdx in seatingArrangement.tables
       each seat, i in table.top
         input(type="hidden", name=`seat_${tIdx}_top_${i}`, id=`input_seat_t${tIdx}_top_${i}`, value=seat)
-      // Bottom row seats.
       each seat, i in table.bottom
         input(type="hidden", name=`seat_${tIdx}_bottom_${i}`, id=`input_seat_t${tIdx}_bottom_${i}`, value=seat)
-      // Bonus seats.
       if bonusConfig === 'left' || bonusConfig === 'both'
-        input(type="hidden", name=`seat_${tIdx}_bonus_left`, id=`input_seat_t${tIdx}_bonus_left`, value=table.bonus.left)
+        input(type="hidden", name=`seat_${tIdx}_bonus_left`, id=`input_seat_t${tIdx}_bonus_left`, value=table.bonus_left)
       if bonusConfig === 'right' || bonusConfig === 'both'
-        input(type="hidden", name=`seat_${tIdx}_bonus_right`, id=`input_seat_t${tIdx}_bonus_right`, value=table.bonus.right)
-    // Submit button.
+        input(type="hidden", name=`seat_${tIdx}_bonus_right`, id=`input_seat_t${tIdx}_bonus_right`, value=table.bonus_right)
     button.btn.btn-success.mt-3(type="submit") Optimize Seating
-  
+
   // SVG container for visual seating.
   div#svg-container(style="width:100%; height:600px; border:1px solid #ccc; overflow:hidden; margin-top:20px;")
     svg#seatSvg(width="5000" height="5000")
-  
+
   script.
     // Data from the server.
-    const seatingArrangement = !{JSON.stringify(seatingArrangement)};
+    const seatingArrangement = !{JSON.stringify(seatingArrangement)}.tables;
     const bonusConfig = "!{bonusConfig}";
     const L = !{L};
     const numTables = seatingArrangement.length;
     const layoutMode = "!{layoutMode}";
     const layoutRows = !{layoutRows || 'null'};
     const layoutColumns = !{layoutColumns || 'null'};
+    // [SVG drawing code similar to that in result.pug...]
 
     // Dynamic dimensions.
     const seatRadius = 40;      // Fixed seat circle radius.
@@ -56,7 +51,7 @@ block content
     const margin = 100;         // Outer margin.
     const tableSpacingX = tableWidth + 200;
     const tableSpacingY = tableHeight + 200;
-  
+
     if (layoutMode === "row") {
       gridCols = numTables;
       gridRows = 1;
@@ -71,9 +66,9 @@ block content
       gridRows = Math.ceil(numTables / gridCols);
     }
 
-  
+
     const svg = document.getElementById('seatSvg');
-  
+
     // Function to draw a seat with click handler.
     function drawSeat(x, y, seatValue, seatId) {
       // Create the circle.
@@ -86,7 +81,7 @@ block content
       circle.setAttribute("id", seatId);
       circle.style.cursor = "pointer";
       svg.appendChild(circle);
-  
+
       // Create the text.
       const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
       text.setAttribute("x", x);
@@ -97,7 +92,7 @@ block content
       text.textContent = seatValue;
       text.setAttribute("id", seatId + "_text");
       svg.appendChild(text);
-  
+
       // Click handler: prompt for new value and update hidden input.
       circle.addEventListener("click", function() {
         const currentValue = text.textContent;
@@ -111,19 +106,19 @@ block content
         }
       });
     }
-  
+
     // Clear existing SVG content.
     while (svg.firstChild) {
       svg.removeChild(svg.firstChild);
     }
-  
+
     // Draw tables according to the computed grid.
     seatingArrangement.forEach((table, tIdx) => {
       const col = tIdx % gridCols;
       const row = Math.floor(tIdx / gridCols);
       const offsetX = margin + col * tableSpacingX;
       const offsetY = margin + row * tableSpacingY;
-  
+
       // Draw table rectangle.
       const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       rect.setAttribute("x", offsetX);
@@ -133,40 +128,40 @@ block content
       rect.setAttribute("fill", "#f8f9fa");
       rect.setAttribute("stroke", "#000");
       svg.appendChild(rect);
-  
+
       // Draw top row seats.
       table.top.forEach((seat, i) => {
-         const spacing = tableWidth / (L + 1);
-         const x = offsetX + spacing * (i + 1);
-         const y = offsetY - seatMargin;
-         const seatId = `seat_t${tIdx}_top_${i}`;
-         drawSeat(x, y, seat, seatId);
+        const spacing = tableWidth / (L + 1);
+        const x = offsetX + spacing * (i + 1);
+        const y = offsetY - seatMargin;
+        const seatId = `seat_t${tIdx}_top_${i}`;
+        drawSeat(x, y, seat, seatId);
       });
-  
+
       // Draw bottom row seats.
       table.bottom.forEach((seat, i) => {
-         const spacing = tableWidth / (L + 1);
-         const x = offsetX + spacing * (i + 1);
-         const y = offsetY + tableHeight + seatMargin;
-         const seatId = `seat_t${tIdx}_bottom_${i}`;
-         drawSeat(x, y, seat, seatId);
+        const spacing = tableWidth / (L + 1);
+        const x = offsetX + spacing * (i + 1);
+        const y = offsetY + tableHeight + seatMargin;
+        const seatId = `seat_t${tIdx}_bottom_${i}`;
+        drawSeat(x, y, seat, seatId);
       });
-  
+
       // Draw bonus seats if configured.
       if(bonusConfig === "left" || bonusConfig === "both") {
-         const x = offsetX - seatMargin;
-         const y = offsetY + tableHeight / 2;
-         const seatId = `seat_t${tIdx}_bonus_left`;
-         drawSeat(x, y, table.bonus.left, seatId);
+        const x = offsetX - seatMargin;
+        const y = offsetY + tableHeight / 2;
+        const seatId = `seat_t${tIdx}_bonus_left`;
+        drawSeat(x, y, table.bonus_left, seatId);
       }
       if(bonusConfig === "right" || bonusConfig === "both") {
-         const x = offsetX + tableWidth + seatMargin;
-         const y = offsetY + tableHeight / 2;
-         const seatId = `seat_t${tIdx}_bonus_right`;
-         drawSeat(x, y, table.bonus.right, seatId);
+        const x = offsetX + tableWidth + seatMargin;
+        const y = offsetY + tableHeight / 2;
+        const seatId = `seat_t${tIdx}_bonus_right`;
+        drawSeat(x, y, table.bonus_right, seatId);
       }
     });
-  
+
     // Initialize Panzoom for zooming and panning.
     const panZoomInstance = Panzoom(svg, { contain: 'outside' });
     document.getElementById('svg-container').addEventListener('wheel', panZoomInstance.zoomWithWheel);
