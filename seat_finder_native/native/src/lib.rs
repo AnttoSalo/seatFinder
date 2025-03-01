@@ -6,6 +6,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Instant;
+use std::time::Duration;
+
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Student {
@@ -538,7 +540,9 @@ pub fn optimize_seating_simulated_annealing(
     initial_temperature: f64,
     cooling_rate: f64,
     early_stop: bool,
-    run_id: usize, // added run identifier for logging
+    run_id: usize, // run identifier for logging
+    channel: Channel,
+    progress_cb: Root<JsFunction>,
 ) -> (SeatingArrangement, PerformanceLog) {
     let start = Instant::now();
     let mut current_arrangement = initial_arrangement.clone();
@@ -601,10 +605,22 @@ pub fn optimize_seating_simulated_annealing(
     for iter in 0..iterations {
         if free_coords.len() < 2 { break; }
         if iter % 100_000 == 0 {
-            log_messages.push(format!(
-                "Run {}: Iteration {}: best_score = {}, temperature = {}",
-                run_id, iter, best_score, temperature
-            ));
+            let progress = iter;
+            let current_best = best_score;
+            let current_temp = temperature;
+            let run_id_copy = run_id;
+            let progress_cb_clone = progress_cb.clone();
+            channel.send(move |mut cx| {
+                let cb = progress_cb_clone.into_inner(&mut cx);
+                let obj = cx.empty_object();
+                obj.set(&mut cx, "runId", cx.number(run_id_copy as f64))?;
+                obj.set(&mut cx, "iteration", cx.number(progress as f64))?;
+                obj.set(&mut cx, "bestScore", cx.number(current_best))?;
+                obj.set(&mut cx, "temperature", cx.number(current_temp))?;
+                let args = vec![obj.upcast::<JsValue>()];
+                cb.call(&mut cx, cx.null(), args)?;
+                Ok(())
+            });
         }
         let len = free_coords.len();
         let idx1 = rng.gen_range(0..len);
@@ -702,7 +718,7 @@ pub fn optimize_seating_simulated_annealing(
 
 // Launch multiple independent simulated annealing runs in parallel.
 // Each run returns its best arrangement and performance log; we then print a centralized summary.
-pub fn parallel_annealing_search(
+pub fn parallel_annealing_search( 
     initial_arrangement: SeatingArrangement,
     fixed_coords: Vec<Coordinate>,
     students_map: HashMap<String, Student>,
@@ -713,6 +729,8 @@ pub fn parallel_annealing_search(
     cooling_rate: f64,
     early_stop: bool,
     num_runs: usize, // e.g., 12 for a 12-core machine
+    channel: Channel,
+    progress_cb: Root<JsFunction>,
 ) -> SeatingArrangement {
     // Create a channel to collect (arrangement, performance log) tuples.
     let (tx, rx) = channel();
@@ -768,15 +786,16 @@ pub fn parallel_annealing_search(
 }
 
 fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsString> {
-    let initial_arrangement_json = cx.argument::<JsString>(0)?.value();
-    let fixed_coords_json = cx.argument::<JsString>(1)?.value();
-    let students_map_json = cx.argument::<JsString>(2)?.value();
-    let bonus_parameter = cx.argument::<JsNumber>(3)?.value();
-    let bonus_config = cx.argument::<JsString>(4)?.value();
-    let iterations = cx.argument::<JsNumber>(5)?.value() as u32;
-    let initial_temperature = cx.argument::<JsNumber>(6)?.value();
-    let cooling_rate = cx.argument::<JsNumber>(7)?.value();
-    let early_stop = cx.argument::<JsBoolean>(8)?.value();
+    let js_progress_cb = cx.argument::<JsFunction>(0)?.root(&mut cx);
+    let initial_arrangement_json = cx.argument::<JsString>(1)?.value();
+    let fixed_coords_json = cx.argument::<JsString>(2)?.value();
+    let students_map_json = cx.argument::<JsString>(3)?.value();
+    let bonus_parameter = cx.argument::<JsNumber>(4)?.value();
+    let bonus_config = cx.argument::<JsString>(5)?.value();
+    let iterations = cx.argument::<JsNumber>(6)?.value() as u32;
+    let initial_temperature = cx.argument::<JsNumber>(7)?.value();
+    let cooling_rate = cx.argument::<JsNumber>(8)?.value();
+    let early_stop = cx.argument::<JsBoolean>(9)?.value();
 
     let initial_arrangement: SeatingArrangement = serde_json::from_str(&initial_arrangement_json)
         .or_else(|e| cx.throw_error(format!("Failed to parse initial_arrangement: {:?}", e)))?;
@@ -784,32 +803,46 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsString> {
         .or_else(|e| cx.throw_error(format!("Failed to parse fixed_coords: {:?}", e)))?;
     let students_map: HashMap<String, Student> = serde_json::from_str(&students_map_json)
         .or_else(|e| cx.throw_error(format!("Failed to parse students_map: {:?}", e)))?;
+    let channel = cx.channel();
 
-    let best_arrangement = parallel_annealing_search(
-        initial_arrangement,
-        fixed_coords,
-        students_map.clone(),
-        bonus_parameter,
-        &bonus_config,
-        iterations as usize,
-        initial_temperature,
-        cooling_rate,
-        early_stop,
-        6, // number of parallel runs; adjust as needed
-    );
-
-    // Instead of just serializing best_arrangement, also compute its score.
-    let wishes_map = build_wishes_map(&students_map);
-    let best_score = evaluate_seating(&best_arrangement, &students_map, &wishes_map, bonus_parameter, &bonus_config);
-
-    // Build a JSON object to return both pieces of information.
-    let result_obj = json!({
-        "seatingArrangement": best_arrangement,
-        "bestScore": best_score,
+    // Spawn a background thread for the entire optimization process.
+    thread::spawn({
+        let bonus_config = bonus_config.clone();
+        let js_progress_cb = js_progress_cb.clone();
+        move || {
+            let best_arrangement = parallel_annealing_search(
+                initial_arrangement,
+                fixed_coords,
+                students_map.clone(),
+                bonus_parameter,
+                &bonus_config,
+                iterations as usize,
+                initial_temperature,
+                cooling_rate,
+                early_stop,
+                6, // number of parallel runs
+                channel.clone(),
+                js_progress_cb.clone(),
+            );
+            let wishes_map = build_wishes_map(&students_map);
+            let best_score = evaluate_seating(&best_arrangement, &students_map, &wishes_map, bonus_parameter, &bonus_config);
+            let result_obj = json!({
+                "seatingArrangement": best_arrangement,
+                "bestScore": best_score,
+            });
+            let result_json = serde_json::to_string(&result_obj).unwrap();
+            // Send the final result as one more progress update.
+            channel.send(move |mut cx| {
+                let cb = js_progress_cb.into_inner(&mut cx);
+                let obj = cx.empty_object();
+                obj.set(&mut cx, "finalResult", cx.string(result_json))?;
+                let args = vec![obj.upcast::<JsValue>()];
+                cb.call(&mut cx, cx.null(), args)?;
+                Ok(())
+            });
+        }
     });
-    let result_json = serde_json::to_string(&result_obj)
-        .or_else(|e| cx.throw_error(format!("Failed to serialize result: {:?}", e)))?;
-    Ok(cx.string(result_json))
+    Ok(cx.undefined())
 }
 
 register_module!(mut cx, {
