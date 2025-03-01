@@ -345,7 +345,7 @@ app.post('/arrange', (req, res) => {
 	const initialTemperature = 1200.0;
 	const coolingRate = 0.999991;
 	const earlyStopFlag = true;
-	const resultJson = seatFinder.optimizeSeating(JSON.stringify(seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
+	const resultJson = seatFinder.optimizeSeating(progressHandler, JSON.stringify(seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
 	let resultObj = JSON.parse(resultJson);
 	let optimizedArrangement = new SeatingArrangement(resultObj.seatingArrangement.tables);
 
@@ -364,6 +364,15 @@ app.post('/arrange', (req, res) => {
 		layoutColumns: req.session.layoutColumns || null
 	});
 });
+function progressHandler(progress) {
+	if (progress.finalResult) {
+		console.log('Final result:', progress.finalResult);
+		// Handle final result, update UI, etc.
+	} else {
+		console.log(`Run ${progress.runId}: Iteration ${progress.iteration}, Best Score: ${progress.bestScore}, Temperature: ${progress.temperature}`);
+		// Update progress UI
+	}
+}
 
 // POST /recalculate: Re-run optimization.
 app.post('/recalculate', (req, res) => {
