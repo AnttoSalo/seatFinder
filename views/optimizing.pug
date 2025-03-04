@@ -43,7 +43,10 @@ block content
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById("iterationDisplay").textContent = data.iteration;
-                    document.getElementById("bestScoreDisplay").textContent = data.best_score;
+                    let currentScore = parseFloat(document.getElementById("bestScoreDisplay").textContent) || 0;
+                    if(data.best_score>currentScore){
+                        document.getElementById("bestScoreDisplay").textContent = data.best_score;
+                    }
                     document.getElementById("temperatureDisplay").textContent = data.temperature;
                     // Calculate progress percentage.
                     let percent = Math.min(100, (data.iteration / totalIterations) * 100);

@@ -513,7 +513,7 @@ pub fn optimize_seating_simulated_annealing(
     // Main simulated annealing loop.
     for iter in 0..iterations {
         if free_coords.len() < 2 { break; }
-        if iter % 100_000 == 0 {
+        if iter % 10_000 == 0 {
             if let Ok(mut prog) = GLOBAL_PROGRESS.lock() {
                 prog.iteration = iter;
                 prog.best_score = best_score;
@@ -693,7 +693,15 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsUndefined> {
         .or_else(|e| cx.throw_error(format!("Failed to parse fixed_coords: {:?}", e)))?;
     let students_map: HashMap<String, Student> = serde_json::from_str(&students_map_json)
         .or_else(|e| cx.throw_error(format!("Failed to parse students_map: {:?}", e)))?;
-
+    {
+        let mut prog = GLOBAL_PROGRESS.lock().unwrap();
+        *prog = ProgressInfo {
+            iteration: 0,
+            best_score: std::f64::MIN,
+            temperature: initial_temperature, // start with the passed initial temperature
+            final_result: None,
+        };
+    }
     // Spawn a background thread to run the optimization.
     thread::spawn(move || {
         let best_arrangement = parallel_annealing_search(

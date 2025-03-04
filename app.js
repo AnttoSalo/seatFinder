@@ -345,7 +345,7 @@ app.post('/arrange', (req, res) => {
 	req.session.seatingArrangement = new SeatingArrangement(seatingArr);
 
 	// Start native optimization asynchronously.
-	const iterations = 1200000;
+	const iterations = 300000;
 	const initialTemperature = 1200.0;
 	const coolingRate = 0.999991;
 	const earlyStopFlag = true;
