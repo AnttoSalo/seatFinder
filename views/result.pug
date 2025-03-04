@@ -9,7 +9,7 @@ block content
       button#enableSwap.btn.btn-warning Swap Seats
       button#confirmSwap.btn.btn-success.ms-2(style="display:none;") Confirm Swap
       button#cancelSwap.btn.btn-secondary.ms-2(style="display:none;") Cancel Swap
-      span#swapMsg.ms-2(style="font-weight: bold;") 
+      span#swapMsg.ms-2(style="font-weight: bold;")
       button#recalcBtn.btn.btn-primary.ms-3 Recalculate Seating
     button#saveJsonBtn.btn.btn-info.ms-auto Save Arrangement as JSON
 
@@ -20,7 +20,7 @@ block content
   // Side-by-side textual representation and statistics.
   div#textualRepresentation
     div.row
-      // Left column: seating arrangement textual view.
+      // Left column: textual seating arrangement.
       div.col-md-6
         h1.mb-4 Final Seating Arrangement (Textual)
         each table, tIdx in seatingArrangement.tables
@@ -54,7 +54,7 @@ block content
         else
           p None!
 
-  // Client-side scripts.
+  // Client-side scripts: set global variables.
   script.
     document.addEventListener('DOMContentLoaded', function() {
       window.currentSeatingArrangement = !{JSON.stringify(seatingArrangement)};
@@ -66,7 +66,7 @@ block content
       window.currentL = !{L};
     });
 
-  // Global variables and drawing functions.
+  // Global variables and drawing functions for SVG rendering and swapping.
   script.
     const seatingArrangement = !{JSON.stringify(seatingArrangement)};
     const bonusConfig = "!{bonusConfig}";
@@ -75,8 +75,6 @@ block content
     const layoutMode = "!{layoutMode}";
     const layoutRows = !{layoutRows || 'null'};
     const layoutColumns = !{layoutColumns || 'null'};
-
-    // Dimensions optimized for 1080p.
     const seatRadius = 40;
     const seatMargin = 30;
     const baseSeatSpace = seatRadius * 2 + seatMargin;

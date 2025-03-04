@@ -242,7 +242,17 @@ app.post('/upload', upload.single('excelFile'), (req, res) => {
 	});
 });
 
-// POST /arrange: Build seating arrangement from form and optimize.
+app.get('/progress', (req, res) => {
+	try {
+		// seatFinder.getProgress returns a JSON string.
+		const progressResult = seatFinder.getProgress();
+		const progress = JSON.parse(progressResult);
+		res.json(progress);
+	} catch (e) {
+		res.status(500).json({error: 'Failed to parse progress', details: e.toString()});
+	}
+});
+
 app.post('/arrange', (req, res) => {
 	const numTables = parseInt(req.body.numTables);
 	const seatsPerTable = parseInt(req.body.seatsPerTable);
@@ -252,7 +262,6 @@ app.post('/arrange', (req, res) => {
 
 	let seatingArr = [];
 	let fixedCoords = [];
-
 	for (let t = 0; t < numTables; t++) {
 		let table = {
 			top: new Array(L).fill(''),
@@ -272,9 +281,7 @@ app.post('/arrange', (req, res) => {
 		}
 		seatingArr.push(table);
 	}
-	// Create a new SeatingArrangement instance from the form data.
 	let seatingArrangement = new SeatingArrangement(seatingArr);
-
 	seatingArr.forEach((table, t) => {
 		table.top.forEach((seat, i) => {
 			if (seat) fixedCoords.push({table: t, section: 'top', index: i});
@@ -289,11 +296,10 @@ app.post('/arrange', (req, res) => {
 			if (table.bonus_right) fixedCoords.push({table: t, section: 'bonus_right'});
 		}
 	});
-
-	// **Fix:** Store fixedCoords in the session so that /recalculate can access them.
 	req.session.fixedCoords = fixedCoords;
 
 	let students = req.session.students || [];
+	let studentsMap = req.session.studentsMap || {};
 	let assigned = new Set();
 	fixedCoords.forEach((coord) => {
 		let table = seatingArr[coord.table];
@@ -309,7 +315,6 @@ app.post('/arrange', (req, res) => {
 	});
 	let remainingStudents = students.filter((s) => !assigned.has(s.name));
 	remainingStudents.sort(() => Math.random() - 0.5);
-
 	let freeCoords = [];
 	seatingArr.forEach((table, t) => {
 		table.top.forEach((seat, i) => {
@@ -337,47 +342,48 @@ app.post('/arrange', (req, res) => {
 			table.bonus_right = name;
 		}
 	}
+	req.session.seatingArrangement = new SeatingArrangement(seatingArr);
 
-	let studentsMap = req.session.studentsMap || {};
-
-	// Optimize seating via the Neon function.
+	// Start native optimization asynchronously.
 	const iterations = 1200000;
 	const initialTemperature = 1200.0;
 	const coolingRate = 0.999991;
 	const earlyStopFlag = true;
-	const resultJson = seatFinder.optimizeSeating(JSON.stringify(seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
-	setInterval(() => {
-		const progressResult = seatFinder.getProgress();
-		if (typeof progressResult === 'string' && progressResult !== '') {
-			// It's a string—parse it.
-			const progress = JSON.parse(progressResult);
-			console.log('Progress:', progress);
-		} else if (progressResult) {
-			// If it's already an object, use it directly.
-			console.log('Progress:', progressResult);
-		} else {
-			console.log('No progress available yet');
-		}
-	}, 1000);
+	seatFinder.optimizeSeating(JSON.stringify(req.session.seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
 
-	let optimizedArrangement = new SeatingArrangement(resultObj.seatingArrangement.tables);
-
-	let stats = computeStatistics(optimizedArrangement, studentsMap, bonusParameter, L, bonusConfig);
-	req.session.seatingArrangement = optimizedArrangement;
-	res.render('result', {
-		seatingArrangement: optimizedArrangement,
+	// Render the "optimizing" view which displays a modal with progress.
+	res.render('optimizing', {
+		seatingArrangement: req.session.seatingArrangement,
 		numTables,
 		seatsPerTable,
 		bonusParameter,
 		bonusConfig,
-		stats,
 		L,
+		layoutMode: req.session.layoutMode,
+		layoutRows: req.session.layoutRows || null,
+		layoutColumns: req.session.layoutColumns || null,
+		totalIterations: iterations,
+		startTime: Date.now() // embed current timestamp for ETA calculation
+	});
+});
+// GET /result: Render the final results view.
+app.get('/result', (req, res) => {
+	const studentsMap = req.session.studentsMap || {};
+	const optimizedArrangement = req.session.seatingArrangement;
+	const stats = computeStatistics(optimizedArrangement, studentsMap, req.session.bonusParameter, req.session.L, req.session.bonusConfig);
+	res.render('result', {
+		seatingArrangement: optimizedArrangement,
+		numTables: req.session.numTables,
+		seatsPerTable: req.session.seatsPerTable,
+		bonusParameter: req.session.bonusParameter,
+		bonusConfig: req.session.bonusConfig,
+		stats,
+		L: req.session.L,
 		layoutMode: req.session.layoutMode,
 		layoutRows: req.session.layoutRows || null,
 		layoutColumns: req.session.layoutColumns || null
 	});
 });
-
 // POST /recalculate: Re-run optimization.
 app.post('/recalculate', (req, res) => {
 	// Re-instantiate the seating arrangement if necessary.
