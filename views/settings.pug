@@ -1,41 +1,59 @@
 extends layout
 
 block content
-    h1.m-4 Settings CURRENTLY NOT IMPLEMENTED, VALUES HARDCODED
+    h1.mb-4 Settings
     form(action="/settings" method="post")
         h3.m-2 Algorithm settings:
+        p.lead The following settings control the optimization algorithm used to find the best seating arrangement. The default values have been chosen to work well in most cases. Adjust these settings if you want to experiment with different optimization strategies. These settings also majorly affect the runtime of the optimization algorithm.
         .mb-3 
             label.form-label(for="iterations") Iterations: 
             input.form-control(type="number" name="iterations" id="iterations" value=config.optimization.iterations, required)
+            small.form-text.text-muted Number of iterations for the optimization algorithm.
         .mb-3
             label.form-label(for="temperature") Temperature:
             input.form-control(type="number" name="temperature" id="temperature" value=config.optimization.initialTemperature, required)
+            small.form-text.text-muted Initial temperature for the simulated annealing algorithm.
         .mb-3
             label.form-label(for="coolingRate") Cooling Rate:
-            input.form-control(type="number" step="0.00001" name="coolingRate" id="coolingRate" value=config.optimization.coolingRate, required)
+            input.form-control(type="number" step="0.000001" name="coolingRate" id="coolingRate" value=config.optimization.coolingRate, required)
+            small.form-text.text-muted Cooling rate for the simulated annealing algorithm.
         .mb-3
             label.form-label(for="earlyStop") Enable Early Stop:
             input.ml-3(type="checkbox" name="earlyStop" id="earlyStop" checked=config.optimization.earlyStop)
+            small.form-text.text-muted Enable early stopping if the solution converges.
+        .mb-3
+            label.form-label(for="parallelRuns") Parallel Runs:
+            input.form-control(type="number" name="parallelRuns" id="parallelRuns" value=config.optimization.parallelRuns, required)
+            small.form-text.text-muted Number of parallel runs for the optimization algorithm. Number of cores in your CPU is a good choice.
         h3.m-2 Seating settings:
         .mb-3
             label.form-label(for="defaultSeatRadius") Default Seat Radius:
             input.form-control(type="number" name="defaultSeatRadius" id="defaultSeatRadius" value=config.seating.defaultSeatRadius, required)
+            small.form-text.text-muted Default radius of each seat in the seating arrangement.
         .mb-3
             label.form-label(for="defaultSeatMargin") Default Seat Margin:
             input.form-control(type="number" name="defaultSeatMargin" id="defaultSeatMargin" value=config.seating.defaultSeatMargin, required)
+            small.form-text.text-muted Default margin between seats in the seating arrangement.
         .mb-3
             label.form-label(for="defaultTableHeight") Default Table Height:
             input.form-control(type="number" name="defaultTableHeight" id="defaultTableHeight" value=config.seating.defaultTableHeight, required)
+            small.form-text.text-muted Default height of each table in the seating arrangement.
         .mb-3
             label.form-label(for="defaultMinTableWidth") Default Minimum Table Width:
             input.form-control(type="number" name="defaultMinTableWidth" id="defaultMinTableWidth" value=config.seating.defaultMinTableWidth, required)
+            small.form-text.text-muted Default minimum width of each table in the seating arrangement.
         .mb-3
             label.form-label(for="defaultMargin") Default Margin:
             input.form-control(type="number" name="defaultMargin" id="defaultMargin" value=config.seating.defaultMargin, required)
+            small.form-text.text-muted Default margin around the seating arrangement.
         .mb-3
             label.form-label(for="defaultTableSpacingX") Default Table Spacing X:
             input.form-control(type="number" name="defaultTableSpacingX" id="defaultTableSpacingX" value=config.seating.defaultTableSpacingX, required)
+            small.form-text.text-muted Default horizontal spacing between tables in the seating arrangement.
         .mb-3
             label.form-label(for="defaultTableSpacingY") Default Table Spacing Y:
             input.form-control(type="number" name="defaultTableSpacingY" id="defaultTableSpacingY" value=config.seating.defaultTableSpacingY, required)
+            small.form-text.text-muted Default vertical spacing between tables in the seating arrangement.
         button.btn.btn-primary(type="submit") Save Settings
+    form(action="/settings/reset" method="post" style="margin-top:20px;")
+        button.btn.btn-danger(type="submit") Reset Settings to Defaults

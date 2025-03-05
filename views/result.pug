@@ -9,7 +9,7 @@ block content
       button#enableSwap.btn.btn-warning Swap Seats
       button#confirmSwap.btn.btn-success.ms-2(style="display:none;") Confirm Swap
       button#cancelSwap.btn.btn-secondary.ms-2(style="display:none;") Cancel Swap
-      span#swapMsg.ms-2(style="font-weight: bold;") 
+      span#swapMsg.ms-2(style="font-weight: bold;")
       button#recalcBtn.btn.btn-primary.ms-3 Recalculate Seating
     button#saveJsonBtn.btn.btn-info.ms-auto Save Arrangement as JSON
 
@@ -20,7 +20,7 @@ block content
   // Side-by-side textual representation and statistics.
   div#textualRepresentation
     div.row
-      // Left column: seating arrangement textual view.
+      // Left column: textual seating arrangement.
       div.col-md-6
         h1.mb-4 Final Seating Arrangement (Textual)
         each table, tIdx in seatingArrangement.tables
@@ -54,7 +54,7 @@ block content
         else
           p None!
 
-  // Client-side scripts.
+  // Client-side scripts: set global variables.
   script.
     document.addEventListener('DOMContentLoaded', function() {
       window.currentSeatingArrangement = !{JSON.stringify(seatingArrangement)};
@@ -66,7 +66,7 @@ block content
       window.currentL = !{L};
     });
 
-  // Global variables and drawing functions.
+  // Global variables and drawing functions for SVG rendering and swapping.
   script.
     const seatingArrangement = !{JSON.stringify(seatingArrangement)};
     const bonusConfig = "!{bonusConfig}";
@@ -75,16 +75,14 @@ block content
     const layoutMode = "!{layoutMode}";
     const layoutRows = !{layoutRows || 'null'};
     const layoutColumns = !{layoutColumns || 'null'};
-
-    // Dimensions optimized for 1080p.
-    const seatRadius = 40;
-    const seatMargin = 30;
+    const seatRadius = !{JSON.stringify(config.seating.defaultSeatRadius)};
+    const seatMargin = !{JSON.stringify(config.seating.defaultSeatMargin)};
     const baseSeatSpace = seatRadius * 2 + seatMargin;
-    const tableWidth = Math.max(1200, (L + 1) * baseSeatSpace);
-    const tableHeight = 300;
-    const margin = 100;
-    const tableSpacingX = tableWidth + 200;
-    const tableSpacingY = tableHeight + 200;
+    const tableWidth = Math.max(!{JSON.stringify(config.seating.defaultMinTableWidth)}, (L + 1) * baseSeatSpace);
+    const tableHeight = !{JSON.stringify(config.seating.defaultTableHeight)};
+    const margin = !{JSON.stringify(config.seating.defaultMargin)};
+    const tableSpacingX = !{JSON.stringify(config.seating.defaultTableSpacingX)} + tableWidth;
+    const tableSpacingY = !{JSON.stringify(config.seating.defaultTableSpacingY)} + tableHeight;
 
     let gridCols, gridRows;
     if (layoutMode === "row") {
@@ -341,20 +339,12 @@ block content
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       })
-      .then(response => response.json())
-      .then(data => {
-        window.currentSeatingArrangement = data.seatingArrangement;
-        window.currentStats = data.stats;
-        window.currentBonusConfig = data.bonusConfig;
-        const svg = document.getElementById('seatSvg');
-        svg.style.opacity = 0;
-        setTimeout(() => {
-          drawSVG(data.seatingArrangement);
-          svg.style.opacity = 1;
-        }, 300);
-        updateTextualRepresentation(data);
-        recalcBtn.disabled = false;
-        recalcBtn.textContent = "Recalculate Seating";
+      .then(response => response.text())
+      .then(html => {
+        // Replace the current page with the new "optimizing" view.
+        document.open();
+        document.write(html);
+        document.close();
       })
       .catch(err => {
         console.error(err);
@@ -362,6 +352,7 @@ block content
         recalcBtn.textContent = "Recalculate Seating";
       });
     });
+
 
     document.getElementById('saveJsonBtn').addEventListener('click', function() {
       const dataToSave = {

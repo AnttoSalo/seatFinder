@@ -144,7 +144,7 @@ block content
         // Left column: seating arrangement textual view.
         html += '<div class="col-md-6">';
         html += '<h1 class="mb-4">Final Seating Arrangement (Textual)</h1>';
-        data.seatingArrangement.forEach((table, tIdx) => {
+        data.seatingArrangement.tables.forEach((table, tIdx) => {
           html += `<div class="table-text mb-3"><h2>Table ${tIdx+1}</h2>`;
           if(bonusCfg === 'left' || bonusCfg === 'both')
             html += `<p>Bonus Left: ${table.bonus_left || ""}</p>`;
