@@ -8,12 +8,12 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // GET /optimize: Render the optimization form.
-router.get('/', (req, res) => {
+router.get('/optimize', (req, res) => {
 	res.render('optimize');
 });
 
 // POST /optimize: Run the parameter search.
-router.post('/', upload.single('excelFile'), (req, res) => {
+router.post('/optimize', upload.single('excelFile'), (req, res) => {
 	const numTables = parseInt(req.body.numTables);
 	const seatsPerTable = parseInt(req.body.seatsPerTable);
 	const bonusParameter = parseFloat(req.body.bonusParameter);
