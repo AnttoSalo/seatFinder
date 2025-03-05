@@ -3,10 +3,32 @@ use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::channel; // used for aggregating parallel runs (though not exposed via Neon)
 use std::thread;
 use std::time::Instant;
+use once_cell::sync::Lazy;
 
+// --- Global Shared Progress State ---
+// This state will be updated during optimization and can be polled via getProgress.
+#[derive(Clone, Debug, Serialize)]
+struct ProgressInfo {
+    iteration: usize,
+    best_score: f64,
+    temperature: f64,
+    final_result: Option<String>,
+}
+
+static GLOBAL_PROGRESS: Lazy<Arc<Mutex<ProgressInfo>>> = Lazy::new(|| {
+    Arc::new(Mutex::new(ProgressInfo {
+        iteration: 0,
+        best_score: std::f64::MIN,
+        temperature: 0.0,
+        final_result: None,
+    }))
+});
+
+// --- Domain Types ---
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Student {
     pub name: String,
@@ -34,7 +56,7 @@ pub struct Coordinate {
     pub index: Option<usize>, // Some(index) for top/bottom; None for bonus seats.
 }
 
-// Structure to hold a summary of performance info from one run.
+// --- Performance Logging ---
 struct PerformanceLog {
     run_id: usize,
     total_iterations: usize,
@@ -44,6 +66,7 @@ struct PerformanceLog {
     log_summary: String,
 }
 
+// --- Helper Functions ---
 #[inline(always)]
 fn compute_gap_penalty(row: &Vec<Option<String>>, gap_penalty: f64) -> f64 {
     let mut first: Option<usize> = None;
@@ -67,7 +90,6 @@ fn compute_gap_penalty(row: &Vec<Option<String>>, gap_penalty: f64) -> f64 {
     }
 }
 
-// Precompute a hash set of wishes for each student for O(1) lookups.
 fn build_wishes_map<'a>(
     students_map: &'a HashMap<String, Student>
 ) -> HashMap<&'a str, HashSet<&'a str>> {
@@ -213,119 +235,9 @@ pub fn evaluate_table(
     bonus_parameter: f64,
     bonus_config: &str,
 ) -> f64 {
-    let mut score = 0.0;
-    let gap_penalty = 100.0;
-    let top_len = table.top.len();
-    let bottom_len = table.bottom.len();
-    // Top row.
-    for i in 0..top_len {
-        if let Some(ref student_name) = table.top[i] {
-            if let Some(student) = students_map.get(student_name) {
-                let wishes = wishes_map.get(student_name.as_str()).unwrap();
-                let mut fulfilled = 0.0;
-                if i > 0 {
-                    if let Some(ref neighbor) = table.top[i - 1].as_ref() {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                    }
-                }
-                if i + 1 < top_len {
-                    if let Some(ref neighbor) = table.top[i + 1].as_ref() {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                    }
-                }
-                if i < bottom_len {
-                    if let Some(ref neighbor) = table.bottom[i].as_ref() {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                    }
-                }
-                if i > 0 {
-                    if let Some(neighbor) = table.bottom.get(i - 1).and_then(|s| s.as_ref()) {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 0.8; }
-                    }
-                }
-                if i + 1 < bottom_len {
-                    if let Some(neighbor) = table.bottom.get(i + 1).and_then(|s| s.as_ref()) {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 0.8; }
-                    }
-                }
-                let base_score = fulfilled * student.weight;
-                score += if fulfilled > 0.0 { base_score * bonus_parameter } else { base_score };
-            }
-        }
-    }
-    // Bottom row.
-    for i in 0..bottom_len {
-        if let Some(ref student_name) = table.bottom[i] {
-            if let Some(student) = students_map.get(student_name) {
-                let wishes = wishes_map.get(student_name.as_str()).unwrap();
-                let mut fulfilled = 0.0;
-                if i > 0 {
-                    if let Some(ref neighbor) = table.bottom[i - 1].as_ref() {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                    }
-                }
-                if i + 1 < bottom_len {
-                    if let Some(ref neighbor) = table.bottom[i + 1].as_ref() {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                    }
-                }
-                if i < top_len {
-                    if let Some(ref neighbor) = table.top[i].as_ref() {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                    }
-                }
-                if i > 0 {
-                    if let Some(neighbor) = table.top.get(i - 1).and_then(|s| s.as_ref()) {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 0.8; }
-                    }
-                }
-                if i + 1 < top_len {
-                    if let Some(neighbor) = table.top.get(i + 1).and_then(|s| s.as_ref()) {
-                        if wishes.contains(neighbor.as_str()) { fulfilled += 0.8; }
-                    }
-                }
-                let base_score = fulfilled * student.weight;
-                score += if fulfilled > 0.0 { base_score * bonus_parameter } else { base_score };
-            }
-        }
-    }
-    // Bonus seats.
-    if bonus_config == "left" || bonus_config == "both" {
-        if let Some(ref student_name) = table.bonus_left {
-            if let Some(student) = students_map.get(student_name) {
-                let wishes = wishes_map.get(student_name.as_str()).unwrap();
-                let mut fulfilled = 0.0;
-                if let Some(neighbor) = table.top.get(0).and_then(|s| s.as_ref()) {
-                    if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                }
-                if let Some(neighbor) = table.bottom.get(0).and_then(|s| s.as_ref()) {
-                    if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                }
-                let base_score = fulfilled * student.weight;
-                score += if fulfilled > 0.0 { base_score * bonus_parameter } else { base_score };
-            }
-        }
-    }
-    if bonus_config == "right" || bonus_config == "both" {
-        if let Some(ref student_name) = table.bonus_right {
-            if let Some(student) = students_map.get(student_name) {
-                let wishes = wishes_map.get(student_name.as_str()).unwrap();
-                let mut fulfilled = 0.0;
-                let last_index = top_len.saturating_sub(1);
-                if let Some(neighbor) = table.top.get(last_index).and_then(|s| s.as_ref()) {
-                    if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                }
-                if let Some(neighbor) = table.bottom.get(last_index).and_then(|s| s.as_ref()) {
-                    if wishes.contains(neighbor.as_str()) { fulfilled += 1.0; }
-                }
-                let base_score = fulfilled * student.weight;
-                score += if fulfilled > 0.0 { base_score * bonus_parameter } else { base_score };
-            }
-        }
-    }
-    score += compute_gap_penalty(&table.top, gap_penalty);
-    score += compute_gap_penalty(&table.bottom, gap_penalty);
-    score
+    // For a single table, wrap it in a SeatingArrangement.
+    let single = SeatingArrangement { tables: vec![table.clone()] };
+    evaluate_seating(&single, students_map, wishes_map, bonus_parameter, bonus_config)
 }
 
 #[inline(always)]
@@ -501,7 +413,6 @@ pub fn swap_seats(
             }
         }
     } else {
-        // For different tables, use split_at_mut to avoid overlapping mutable borrows.
         if coord1.table < coord2.table {
             let (first, second) = arrangement.tables.split_at_mut(coord2.table);
             let table1 = &mut first[coord1.table];
@@ -527,7 +438,9 @@ pub fn swap_seats(
     }
 }
 
-// Modified simulated annealing function that returns both the best arrangement and a PerformanceLog.
+// --- Optimization Functions ---
+//
+// The optimization functions update the shared GLOBAL_PROGRESS state as they run.
 pub fn optimize_seating_simulated_annealing(
     initial_arrangement: SeatingArrangement,
     fixed_coords: Vec<Coordinate>,
@@ -538,7 +451,7 @@ pub fn optimize_seating_simulated_annealing(
     initial_temperature: f64,
     cooling_rate: f64,
     early_stop: bool,
-    run_id: usize, // added run identifier for logging
+    run_id: usize, // run identifier for logging
 ) -> (SeatingArrangement, PerformanceLog) {
     let start = Instant::now();
     let mut current_arrangement = initial_arrangement.clone();
@@ -600,11 +513,12 @@ pub fn optimize_seating_simulated_annealing(
     // Main simulated annealing loop.
     for iter in 0..iterations {
         if free_coords.len() < 2 { break; }
-        if iter % 100_000 == 0 {
-            log_messages.push(format!(
-                "Run {}: Iteration {}: best_score = {}, temperature = {}",
-                run_id, iter, best_score, temperature
-            ));
+        if iter % 10_000 == 0 {
+            if let Ok(mut prog) = GLOBAL_PROGRESS.lock() {
+                prog.iteration = iter;
+                prog.best_score = best_score;
+                prog.temperature = temperature;
+            }
         }
         let len = free_coords.len();
         let idx1 = rng.gen_range(0..len);
@@ -644,7 +558,6 @@ pub fn optimize_seating_simulated_annealing(
                 }
             }
         } else {
-            // Revert the swap.
             swap_seats(&mut current_arrangement, &coord1, &coord2);
         }
         temperature *= cooling_rate;
@@ -679,7 +592,7 @@ pub fn optimize_seating_simulated_annealing(
                     best_score += new_local_score - old_local_score;
                     improvement = true;
                 } else {
-                    swap_seats(&mut best_arrangement, &coord1, &coord2); // revert swap
+                    swap_seats(&mut best_arrangement, &coord1, &coord2);
                 }
             }
         }
@@ -700,9 +613,7 @@ pub fn optimize_seating_simulated_annealing(
     (best_arrangement, perf_log)
 }
 
-// Launch multiple independent simulated annealing runs in parallel.
-// Each run returns its best arrangement and performance log; we then print a centralized summary.
-pub fn parallel_annealing_search(
+pub fn parallel_annealing_search( 
     initial_arrangement: SeatingArrangement,
     fixed_coords: Vec<Coordinate>,
     students_map: HashMap<String, Student>,
@@ -714,16 +625,13 @@ pub fn parallel_annealing_search(
     early_stop: bool,
     num_runs: usize, // e.g., 12 for a 12-core machine
 ) -> SeatingArrangement {
-    // Create a channel to collect (arrangement, performance log) tuples.
     let (tx, rx) = channel();
-
     for run_id in 0..num_runs {
         let init_arr = initial_arrangement.clone();
         let fixed = fixed_coords.clone();
         let stud_map = students_map.clone();
         let bonus_config = bonus_config.to_string();
         let tx = tx.clone();
-
         thread::spawn(move || {
             let result = optimize_seating_simulated_annealing(
                 init_arr,
@@ -742,7 +650,6 @@ pub fn parallel_annealing_search(
     }
     drop(tx);
 
-    // Aggregate results from all runs.
     let wishes_map = build_wishes_map(&students_map);
     let mut best_overall = None;
     let mut best_score = f64::MIN;
@@ -756,8 +663,6 @@ pub fn parallel_annealing_search(
             best_overall = Some(arrangement);
         }
     }
-
-    // Print a centralized summary.
     println!("--- Parallel Annealing Summary ---");
     for log in aggregated_logs {
         println!("{}", log);
@@ -767,7 +672,11 @@ pub fn parallel_annealing_search(
     best_overall.expect("At least one run should produce a result")
 }
 
-fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsString> {
+// --- Neon API Functions ---
+//
+// optimizeSeating spawns a background thread to run the optimization. When done, it stores
+// the final result (as a JSON string) in GLOBAL_PROGRESS.final_result.
+fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let initial_arrangement_json = cx.argument::<JsString>(0)?.value();
     let fixed_coords_json = cx.argument::<JsString>(1)?.value();
     let students_map_json = cx.argument::<JsString>(2)?.value();
@@ -777,6 +686,7 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsString> {
     let initial_temperature = cx.argument::<JsNumber>(6)?.value();
     let cooling_rate = cx.argument::<JsNumber>(7)?.value();
     let early_stop = cx.argument::<JsBoolean>(8)?.value();
+    let parallel_runs = cx.argument::<JsNumber>(9)?.value() as usize;
 
     let initial_arrangement: SeatingArrangement = serde_json::from_str(&initial_arrangement_json)
         .or_else(|e| cx.throw_error(format!("Failed to parse initial_arrangement: {:?}", e)))?;
@@ -784,34 +694,54 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsString> {
         .or_else(|e| cx.throw_error(format!("Failed to parse fixed_coords: {:?}", e)))?;
     let students_map: HashMap<String, Student> = serde_json::from_str(&students_map_json)
         .or_else(|e| cx.throw_error(format!("Failed to parse students_map: {:?}", e)))?;
-
-    let best_arrangement = parallel_annealing_search(
-        initial_arrangement,
-        fixed_coords,
-        students_map.clone(),
-        bonus_parameter,
-        &bonus_config,
-        iterations as usize,
-        initial_temperature,
-        cooling_rate,
-        early_stop,
-        6, // number of parallel runs; adjust as needed
-    );
-
-    // Instead of just serializing best_arrangement, also compute its score.
-    let wishes_map = build_wishes_map(&students_map);
-    let best_score = evaluate_seating(&best_arrangement, &students_map, &wishes_map, bonus_parameter, &bonus_config);
-
-    // Build a JSON object to return both pieces of information.
-    let result_obj = json!({
-        "seatingArrangement": best_arrangement,
-        "bestScore": best_score,
+    {
+        let mut prog = GLOBAL_PROGRESS.lock().unwrap();
+        *prog = ProgressInfo {
+            iteration: 0,
+            best_score: std::f64::MIN,
+            temperature: initial_temperature, // start with the passed initial temperature
+            final_result: None,
+        };
+    }
+    // Spawn a background thread to run the optimization.
+    thread::spawn(move || {
+        let best_arrangement = parallel_annealing_search(
+            initial_arrangement,
+            fixed_coords,
+            students_map.clone(),
+            bonus_parameter,
+            &bonus_config,
+            iterations as usize,
+            initial_temperature,
+            cooling_rate,
+            early_stop,
+            parallel_runs,
+        );
+        let wishes_map = build_wishes_map(&students_map);
+        let best_score = evaluate_seating(&best_arrangement, &students_map, &wishes_map, bonus_parameter, &bonus_config);
+        let result_obj = json!({
+            "seatingArrangement": best_arrangement,
+            "bestScore": best_score,
+        });
+        let result_json = serde_json::to_string(&result_obj).unwrap();
+        if let Ok(mut prog) = GLOBAL_PROGRESS.lock() {
+            prog.final_result = Some(result_json);
+        }
     });
-    let result_json = serde_json::to_string(&result_obj)
-        .or_else(|e| cx.throw_error(format!("Failed to serialize result: {:?}", e)))?;
-    Ok(cx.string(result_json))
+    Ok(cx.undefined())
+}
+
+// getProgress returns the current progress (and final result, if available) as a JS string (JSON).
+fn get_progress(mut cx: FunctionContext) -> JsResult<JsValue> {
+    let prog = GLOBAL_PROGRESS.lock().unwrap();
+    let json_str = match serde_json::to_string(&*prog) {
+        Ok(s) => s,
+        Err(e) => return cx.throw_error(format!("Failed to serialize progress: {:?}", e)),
+    };
+    Ok(cx.string(json_str).upcast())
 }
 
 register_module!(mut cx, {
-    cx.export_function("optimizeSeating", optimize_seating_neon)
+    cx.export_function("optimizeSeating", optimize_seating_neon);
+    cx.export_function("getProgress", get_progress)
 });
