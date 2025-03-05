@@ -178,14 +178,21 @@ router.post('/arrange', (req, res) => {
 			table.bonus_right = name;
 		}
 	}
+    //Save to session for recalculation
 	req.session.seatingArrangement = new SeatingArrangement(seatingArr);
-
+    req.session.studentsMap = studentsMap;
+    req.session.bonusParameter = bonusParameter;
+    req.session.L = L;
+    req.session.bonusConfig = bonusConfig;
+    req.session.fixedCoords = fixedCoords;
+    req.session.numTables = numTables;
+    req.session.seatsPerTable = seatsPerTable;
 	// Start native optimization asynchronously.
-	const iterations = 300000;
-	const initialTemperature = 1200.0;
-	const coolingRate = 0.999991;
-	const earlyStopFlag = true;
-	seatFinder.optimizeSeating(JSON.stringify(req.session.seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
+	const iterations = config.optimization.iterations || 1300000;
+	const initialTemperature = config.optimization.initialTemperature || 1200.0;
+	const coolingRate = config.optimization.coolingRate || 0.999991;
+	const earlyStopFlag = config.optimization.earlyStop !== undefined ? config.optimization.earlyStop : true;
+	seatFinder.optimizeSeating(JSON.stringify(req.session.seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag, config.optimization.parallelRuns);
 
 	// Render the "optimizing" view which displays a modal with progress.
 	res.render('optimizing', {
@@ -206,6 +213,17 @@ router.post('/arrange', (req, res) => {
 // GET /result: Render the final results view.
 router.get('/result', (req, res) => {
 	const studentsMap = req.session.studentsMap || {};
+    try {
+        const progressResult = seatFinder.getProgress();
+        const progress = JSON.parse(progressResult);
+        if (progress.final_result) {
+          // Parse the optimized result and update the session
+          let resultObj = JSON.parse(progress.final_result);
+          req.session.seatingArrangement = new SeatingArrangement(resultObj.seatingArrangement.tables);
+        }
+      } catch (e) {
+        console.error("Error fetching final result:", e);
+      }
 	const optimizedArrangement = req.session.seatingArrangement;
 	const stats = computeStatistics(optimizedArrangement, studentsMap, req.session.bonusParameter, req.session.L, req.session.bonusConfig);
 	res.render('result', {
@@ -218,36 +236,64 @@ router.get('/result', (req, res) => {
 		L: req.session.L,
 		layoutMode: req.session.layoutMode,
 		layoutRows: req.session.layoutRows || null,
-		layoutColumns: req.session.layoutColumns || null
+		layoutColumns: req.session.layoutColumns || null,
+        config
 	});
 });
 
-// POST /recalculate: Re-run optimization.
+// POST /recalculate: Re-run optimization asynchronously.
 router.post('/recalculate', (req, res) => {
-	// Re-instantiate the seating arrangement if necessary.
-	let seatingArrangementObj = req.session.seatingArrangement;
-	let seatingArrangement = new SeatingArrangement(seatingArrangementObj.tables);
-	const fixedCoords = req.session.fixedCoords;
-	const studentsMap = req.session.studentsMap;
-	const bonusParameter = req.session.bonusParameter;
-	const L = req.session.L;
-	const bonusConfig = req.session.bonusConfig;
-
-	if (!seatingArrangement || !fixedCoords) {
-		return res.status(400).json({ error: 'Missing seating arrangement or fixed seats.' });
-	}
-
-	const iterations = 500000;
-	const initialTemperature = 400;
-	const coolingRate = 0.99998;
-	const earlyStopFlag = false;
-	const resultJson = seatFinder.optimizeSeating(JSON.stringify(seatingArrangement), JSON.stringify(fixedCoords), JSON.stringify(studentsMap), bonusParameter, bonusConfig, iterations, initialTemperature, coolingRate, earlyStopFlag);
-	let resultObj = JSON.parse(resultJson);
-	let newArrangement = new SeatingArrangement(resultObj.seatingArrangement.tables);
-	req.session.seatingArrangement = newArrangement;
-	res.json({ seatingArrangement: newArrangement, bonusConfig });
-});
-
+    // Re-instantiate the seating arrangement if necessary.
+    let seatingArrangementObj = req.session.seatingArrangement;
+    let seatingArrangement = new SeatingArrangement(seatingArrangementObj.tables);
+    const fixedCoords = req.session.fixedCoords;
+    const studentsMap = req.session.studentsMap;
+    const bonusParameter = req.session.bonusParameter;
+    const L = req.session.L;
+    const bonusConfig = req.session.bonusConfig;
+    const numTables = req.session.numTables;
+    const seatsPerTable = req.session.seatsPerTable;
+  
+    if (!seatingArrangement || !fixedCoords) {
+      return res.status(400).json({ error: 'Missing seating arrangement or fixed seats.' });
+    }
+  
+    // Use configuration values or defaults.
+    const iterations = config.optimization.iterations || 1300000;
+    const initialTemperature = config.optimization.initialTemperature || 1200;
+    const coolingRate = config.optimization.coolingRate || 0.999991;
+    const earlyStopFlag = config.optimization.earlyStop !== undefined ? config.optimization.earlyStop : true;
+  
+    // Start the native optimization asynchronously.
+    seatFinder.optimizeSeating(
+      JSON.stringify(seatingArrangement),
+      JSON.stringify(fixedCoords),
+      JSON.stringify(studentsMap),
+      bonusParameter,
+      bonusConfig,
+      iterations,
+      initialTemperature,
+      coolingRate,
+      earlyStopFlag,
+      config.optimization.parallelRuns
+    );
+  
+    // Render the "optimizing" view which shows the progress modal.
+    res.render('optimizing', {
+      seatingArrangement,
+      numTables,
+      seatsPerTable,
+      bonusParameter,
+      bonusConfig,
+      L,
+      layoutMode: req.session.layoutMode,
+      layoutRows: req.session.layoutRows || null,
+      layoutColumns: req.session.layoutColumns || null,
+      totalIterations: iterations,
+      startTime: Date.now() // embed current timestamp for ETA calculation
+    });
+  });
+  
 // POST /swap: Handle manual seat swapping.
 router.post('/swap', (req, res) => {
 	const seat1 = req.body.seat1;

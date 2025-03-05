@@ -686,6 +686,7 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsUndefined> {
     let initial_temperature = cx.argument::<JsNumber>(6)?.value();
     let cooling_rate = cx.argument::<JsNumber>(7)?.value();
     let early_stop = cx.argument::<JsBoolean>(8)?.value();
+    let parallel_runs = cx.argument::<JsNumber>(9)?.value() as usize;
 
     let initial_arrangement: SeatingArrangement = serde_json::from_str(&initial_arrangement_json)
         .or_else(|e| cx.throw_error(format!("Failed to parse initial_arrangement: {:?}", e)))?;
@@ -714,7 +715,7 @@ fn optimize_seating_neon(mut cx: FunctionContext) -> JsResult<JsUndefined> {
             initial_temperature,
             cooling_rate,
             early_stop,
-            6, // number of parallel runs
+            parallel_runs,
         );
         let wishes_map = build_wishes_map(&students_map);
         let best_score = evaluate_seating(&best_arrangement, &students_map, &wishes_map, bonus_parameter, &bonus_config);

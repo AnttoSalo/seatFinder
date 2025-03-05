@@ -75,14 +75,14 @@ block content
     const layoutMode = "!{layoutMode}";
     const layoutRows = !{layoutRows || 'null'};
     const layoutColumns = !{layoutColumns || 'null'};
-    const seatRadius = 40;
-    const seatMargin = 30;
+    const seatRadius = !{JSON.stringify(config.seating.defaultSeatRadius)};
+    const seatMargin = !{JSON.stringify(config.seating.defaultSeatMargin)};
     const baseSeatSpace = seatRadius * 2 + seatMargin;
-    const tableWidth = Math.max(1200, (L + 1) * baseSeatSpace);
-    const tableHeight = 300;
-    const margin = 100;
-    const tableSpacingX = tableWidth + 200;
-    const tableSpacingY = tableHeight + 200;
+    const tableWidth = Math.max(!{JSON.stringify(config.seating.defaultMinTableWidth)}, (L + 1) * baseSeatSpace);
+    const tableHeight = !{JSON.stringify(config.seating.defaultTableHeight)};
+    const margin = !{JSON.stringify(config.seating.defaultMargin)};
+    const tableSpacingX = !{JSON.stringify(config.seating.defaultTableSpacingX)} + tableWidth;
+    const tableSpacingY = !{JSON.stringify(config.seating.defaultTableSpacingY)} + tableHeight;
 
     let gridCols, gridRows;
     if (layoutMode === "row") {
@@ -339,20 +339,12 @@ block content
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       })
-      .then(response => response.json())
-      .then(data => {
-        window.currentSeatingArrangement = data.seatingArrangement;
-        window.currentStats = data.stats;
-        window.currentBonusConfig = data.bonusConfig;
-        const svg = document.getElementById('seatSvg');
-        svg.style.opacity = 0;
-        setTimeout(() => {
-          drawSVG(data.seatingArrangement);
-          svg.style.opacity = 1;
-        }, 300);
-        updateTextualRepresentation(data);
-        recalcBtn.disabled = false;
-        recalcBtn.textContent = "Recalculate Seating";
+      .then(response => response.text())
+      .then(html => {
+        // Replace the current page with the new "optimizing" view.
+        document.open();
+        document.write(html);
+        document.close();
       })
       .catch(err => {
         console.error(err);
@@ -360,6 +352,7 @@ block content
         recalcBtn.textContent = "Recalculate Seating";
       });
     });
+
 
     document.getElementById('saveJsonBtn').addEventListener('click', function() {
       const dataToSave = {

@@ -6,6 +6,7 @@ const bodyParser = require('body-parser');
 const seedrandom = require('seedrandom');
 const fs = require('fs');
 const seatFinder = require('./seat_finder_native/native');
+const defaultConfig = require('./defaultConfig');
 
 const app = express();
 const config = require('./config');
@@ -43,6 +44,7 @@ app.post('/settings', (req, res) => {
 	config.optimization.initialTemperature = parseFloat(req.body.temperature);
 	config.optimization.coolingRate = parseFloat(req.body.coolingRate);
 	config.optimization.earlyStop = req.body.earlyStop === 'on';
+	config.optimization.parallelRuns = parseInt(req.body.parallelRuns);
 
 	config.seating.defaultSeatRadius = parseInt(req.body.defaultSeatRadius);
 	config.seating.defaultSeatMargin = parseInt(req.body.defaultSeatMargin);
@@ -54,6 +56,16 @@ app.post('/settings', (req, res) => {
 
 	fs.writeFileSync(path.join(__dirname, 'config.js'), 'module.exports = ' + JSON.stringify(config, null, 2) + ';');
 	console.log('Updated settings saved to file.');
+	res.redirect('/settings');
+});
+
+app.post('/settings/reset', (req, res) => {
+	// Reset in-memory config from defaultConfig
+	config.optimization = Object.assign({}, defaultConfig.optimization);
+	config.seating = Object.assign({}, defaultConfig.seating);
+	// Update config.js on disk
+	fs.writeFileSync(path.join(__dirname, 'config.js'), 'module.exports = ' + JSON.stringify(config, null, 2) + ';');
+	console.log('Settings reset to defaults.');
 	res.redirect('/settings');
 });
 
