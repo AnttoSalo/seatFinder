@@ -56,6 +56,32 @@ It uses a simulated annealing algorithm to find ideal seating configuration (goe
    http://localhost:5000
    ```
 
+## Building the Native Rust Library
+
+The native optimization library is prebuilt and included in the distribution. If you want to build it from source, follow these steps:
+
+1. Ensure you have [Rust and Cargo](https://www.rust-lang.org/tools/install) installed.
+2. Open a terminal and navigate to the native library directory:
+   ```
+   cd /c:/Dev/seatFinder/seat_finder_native
+   ```
+3. Install dependencies
+  ```
+   npm install
+   ```
+3. Build the library in release mode:
+   ```
+   cargo build --release
+   ```
+   or 
+  ```
+   neon build --release
+   ```
+4. After a successful build, the compiled library will be located in the `target/release` folder.
+5. (Optional) Copy or configure paths as needed so that the Node.js application loads this library.
+
+These instructions are provided for advanced users. By default, the prebuilt library is used.
+
 ## Usage Instructions
 
 1. On the home (setup) page, configure:
