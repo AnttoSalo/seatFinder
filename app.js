@@ -15,7 +15,7 @@ const seatingRoutes = require('./routes/seating');
 const optimizeRoutes = require('./routes/optimize');
 
 // Middleware
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'pug');
@@ -30,13 +30,13 @@ app.use(
 	})
 );
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({storage: multer.memoryStorage()});
 
 app.use(seatingRoutes);
 app.use(optimizeRoutes);
 
 app.get('/settings', (req, res) => {
-	res.render('settings', { config });
+	res.render('settings', {config});
 });
 
 app.post('/settings', (req, res) => {
@@ -71,7 +71,7 @@ app.post('/settings/reset', (req, res) => {
 
 app.get('/instructions', (req, res) => {
 	const lang = req.query.lang || 'en';
-	res.render('instructions', { lang });
+	res.render('instructions', {lang});
 });
 
 app.get('/', (req, res) => {
