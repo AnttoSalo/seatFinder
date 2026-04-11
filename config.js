@@ -2,9 +2,9 @@ module.exports = {
   "port": 5000,
   "sessionSecret": "seatfindersecret",
   "optimization": {
-    "iterations": 1300000,
-    "initialTemperature": 1200,
-    "coolingRate": 0.999991,
+    "iterations": 14999998,
+    "initialTemperature": 400,
+    "coolingRate": 0.99989,
     "earlyStop": true,
     "parallelRuns": 6
   },
